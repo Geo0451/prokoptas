@@ -1,6 +1,19 @@
 #![forbid(unsafe_code)]
 
+mod codec;
+mod image;
+mod options;
+mod registry;
+
 use std::fmt;
+
+pub use codec::{Decoder, Encoder};
+pub use image::{BitDepth, ColorSpace, DecodedImage, ImageMetadata, Orientation, PixelBuffer};
+pub use options::{
+    ChromaSubsampling, Compression, CropRect, DecodeOptions, DemosaicQuality, EncodeOptions,
+    MetadataRetention, PngFilter,
+};
+pub use registry::{FormatRegistry, FormatTag, LosslessCapability};
 
 /// The stable machine-readable categories exposed by the Core boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -88,7 +101,45 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg(test)]
 mod tests {
-    use super::{Error, ErrorCode};
+    use super::{
+        BitDepth, ColorSpace, Compression, DecodeOptions, DecodedImage, Decoder, EncodeOptions,
+        Encoder, Error, ErrorCode, FormatRegistry, FormatTag, LosslessCapability, PixelBuffer,
+        Result,
+    };
+
+    struct TestDecoder;
+
+    impl Decoder for TestDecoder {
+        fn format(&self) -> FormatTag {
+            FormatTag::Png
+        }
+
+        fn probe(&self, input: &[u8]) -> bool {
+            input == b"test"
+        }
+
+        fn decode(&self, _input: &[u8], _options: &DecodeOptions) -> Result<DecodedImage> {
+            unreachable!()
+        }
+    }
+
+    struct TestEncoder {
+        capability: LosslessCapability,
+    }
+
+    impl Encoder for TestEncoder {
+        fn format(&self) -> FormatTag {
+            FormatTag::Png
+        }
+
+        fn lossless_capability(&self) -> LosslessCapability {
+            self.capability
+        }
+
+        fn encode(&self, _image: &DecodedImage, _options: &EncodeOptions) -> Result<Vec<u8>> {
+            unreachable!()
+        }
+    }
 
     #[test]
     fn error_codes_are_stable_and_machine_readable() {
@@ -108,5 +159,82 @@ mod tests {
             .code(),
             ErrorCode::MemoryLimitExceeded
         );
+    }
+
+    #[test]
+    fn decoded_image_requires_row_major_rgba_storage() {
+        let pixels = PixelBuffer::rgba8(vec![0; 16], 2, 2).expect("valid RGBA8 buffer");
+        let image = DecodedImage::new(pixels, 2, 2, ColorSpace::Srgb, BitDepth::Eight)
+            .expect("valid decoded image");
+
+        assert_eq!(image.pixels.len(), 16);
+        assert_eq!(image.orientation, super::Orientation::Normal);
+        assert!(!image.orientation_applied);
+        assert!(PixelBuffer::rgba8(vec![0; 4], 2, 2).is_err());
+    }
+
+    #[test]
+    fn compression_validation_is_explicit_and_capability_driven() {
+        assert!(Compression::Lossy { quality: 1 }.validate().is_ok());
+        assert!(Compression::Lossy { quality: 100 }.validate().is_ok());
+        assert!(Compression::Lossy { quality: 0 }.validate().is_err());
+
+        let jpeg = TestEncoder {
+            capability: LosslessCapability::Never,
+        };
+        let lossless = EncodeOptions {
+            compression: Compression::Lossless,
+            ..EncodeOptions::default()
+        };
+        assert_eq!(lossless.validate(&jpeg), Err(Error::LosslessNotSupported));
+    }
+
+    #[test]
+    fn lossless_mode_rejects_chroma_subsampling() {
+        let encoder = TestEncoder {
+            capability: LosslessCapability::Configurable,
+        };
+        let options = EncodeOptions {
+            compression: Compression::Lossless,
+            chroma_subsampling: Some(super::ChromaSubsampling::Yuv420),
+            ..EncodeOptions::default()
+        };
+
+        assert!(matches!(
+            options.validate(&encoder),
+            Err(Error::InvalidOptions { .. })
+        ));
+    }
+
+    #[test]
+    fn registry_dispatches_by_probe_and_stable_format_tag() {
+        let decoder = TestDecoder;
+        let encoder = TestEncoder {
+            capability: LosslessCapability::Always,
+        };
+        let decoders: [&dyn Decoder; 1] = [&decoder];
+        let encoders: [&dyn Encoder; 1] = [&encoder];
+        let registry = FormatRegistry::new(&decoders, &encoders);
+
+        assert_eq!(
+            registry
+                .decoder_for(b"test")
+                .expect("matching decoder")
+                .format(),
+            FormatTag::Png
+        );
+        assert_eq!(
+            registry
+                .encoder_for(FormatTag::Png)
+                .expect("matching encoder")
+                .format(),
+            FormatTag::Png
+        );
+        assert!(matches!(
+            registry.decoder_for(b"other"),
+            Err(Error::UnsupportedFormat)
+        ));
+        assert_eq!(FormatTag::Jpeg.as_str(), "jpeg");
+        assert_eq!(FormatTag::all().len(), 9);
     }
 }
