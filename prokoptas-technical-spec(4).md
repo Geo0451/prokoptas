@@ -95,18 +95,18 @@ RAW variants are represented as a family of decode-only inputs. There is no RAW/
 
 All selected production codec paths must be pure Rust with no C/C++ FFI dependencies. Optional features that introduce native or C dependencies must remain disabled. Each selected crate should be verified for a clean `wasm32-unknown-unknown` build before it is committed to Core.
 
-| Format | Decode crate | Encode crate | License | Notes |
-|---|---|---|---|---|
-| Core buffer/abstraction | `image` (0.25+) | — | MIT/Apache-2.0 | Central image/interchange dependency at trait boundaries; internal Core storage remains the custom normalized `PixelBuffer` model. |
-| PNG | `png` | `png` | MIT/Apache-2.0 | Native Rust; PNG encoding is inherently lossless. |
-| **JPEG** | `zune-jpeg` | `jpeg-encoder` | MIT/Apache-2.0/Zlib | Baseline + progressive decode only; no lossless JPEG input mode. JPEG output is always lossy regardless of quality setting. |
-| TIFF | `tiff` | `tiff` | MIT/Apache-2.0 | Supported compression subset is baseline, LZW, and PackBits. No fax compression and no JPEG-in-TIFF path. |
-| BMP | `image` (built-in) | `image` (built-in) | MIT/Apache-2.0 | Uncompressed and lossless. |
-| **WebP** | `image-webp` 0.2.4 | **`zenwebp` 0.4.4** | MIT/Apache-2.0 for `image-webp`; AGPL-3.0-only OR LicenseRef-Imazen-Commercial for `zenwebp` | Still-image WebP only. `zenwebp` provides pure-Rust lossy VP8 and lossless VP8L encoding from RGBA, with explicit quality and effort controls. Animated WebP is rejected by the Core adapter. |
-| **HEIC/HEIF** | **`heic` 0.1.6** | — | AGPL-3.0-only OR LicenseRef-Imazen-Commercial | Pure-Rust, still-image HEIC/HEIF decoder with no C/C++ dependencies. `#![forbid(unsafe_code)]`, `no_std + alloc` compatible, and supports RGBA8 decoding plus resource limits. HEIC encoding is out of scope. HEVC/H.265 patent rights are not granted by the crate's software license and must be treated as a separate legal consideration. |
-| **AVIF** | `zenavif` 0.1.7 | `zenavif` 0.1.7 with `encode` | AGPL-3.0-only OR LicenseRef-Imazen-Commercial | Pure-Rust AVIF codec. Default decode path uses `rav1d-safe` and is safe Rust. Encoding is provided through `zenravif` when the `encode` feature is enabled. Prokoptas supports still images only even though the underlying codec can handle animation and other auxiliary image features. |
-| **JXL** | `jxl-oxide` | `jxl-encoder` 0.3.1 | Decode: MIT/Apache-2.0. Encode: AGPL-3.0-only OR LicenseRef-Imazen-Commercial | Pure-Rust JPEG XL encoder supporting lossy VarDCT and true lossless Modular encoding. Prokoptas exposes still-image operation only. |
-| RAW (decode only) | `rawler` | — | LGPL-2.1 | Decode-only camera RAW support. Pin the exact version and re-check its license on every upgrade. Confirm demosaic capabilities with real sample files before implementation is considered complete. |
+| Format                  | Decode crate       | Encode crate                  | License                                                                                      | Notes                                                                                                                                                                                                                                                                                                                                         |
+| ----------------------- | ------------------ | ----------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Core buffer/abstraction | `image` (0.25+)    | —                             | MIT/Apache-2.0                                                                               | Central image/interchange dependency at trait boundaries; internal Core storage remains the custom normalized `PixelBuffer` model.                                                                                                                                                                                                            |
+| PNG                     | `png`              | `png`                         | MIT/Apache-2.0                                                                               | Native Rust; PNG encoding is inherently lossless.                                                                                                                                                                                                                                                                                             |
+| **JPEG**                | `zune-jpeg`        | `jpeg-encoder`                | MIT/Apache-2.0/Zlib                                                                          | Baseline + progressive decode only; no lossless JPEG input mode. JPEG output is always lossy regardless of quality setting.                                                                                                                                                                                                                   |
+| TIFF                    | `tiff`             | `tiff`                        | MIT/Apache-2.0                                                                               | Supported compression subset is baseline, LZW, and PackBits. No fax compression and no JPEG-in-TIFF path.                                                                                                                                                                                                                                     |
+| BMP                     | `image` (built-in) | `image` (built-in)            | MIT/Apache-2.0                                                                               | Uncompressed and lossless.                                                                                                                                                                                                                                                                                                                    |
+| **WebP**                | `image-webp` 0.2.4 | **`zenwebp` 0.4.4**           | MIT/Apache-2.0 for `image-webp`; AGPL-3.0-only OR LicenseRef-Imazen-Commercial for `zenwebp` | Still-image WebP only. `zenwebp` provides pure-Rust lossy VP8 and lossless VP8L encoding from RGBA, with explicit quality and effort controls. Animated WebP is rejected by the Core adapter.                                                                                                                                                 |
+| **HEIC/HEIF**           | **`heic` 0.1.6**   | —                             | AGPL-3.0-only OR LicenseRef-Imazen-Commercial                                                | Pure-Rust, still-image HEIC/HEIF decoder with no C/C++ dependencies. `#![forbid(unsafe_code)]`, `no_std + alloc` compatible, and supports RGBA8 decoding plus resource limits. HEIC encoding is out of scope. HEVC/H.265 patent rights are not granted by the crate's software license and must be treated as a separate legal consideration. |
+| **AVIF**                | `zenavif` 0.1.7    | `zenavif` 0.1.7 with `encode` | AGPL-3.0-only OR LicenseRef-Imazen-Commercial                                                | Pure-Rust AVIF codec. Default decode path uses `rav1d-safe` and is safe Rust. Encoding is provided through `zenravif` when the `encode` feature is enabled. Prokoptas supports still images only even though the underlying codec can handle animation and other auxiliary image features.                                                    |
+| **JXL**                 | `jxl-oxide`        | `jxl-encoder` 0.3.1           | Decode: MIT/Apache-2.0. Encode: AGPL-3.0-only OR LicenseRef-Imazen-Commercial                | Pure-Rust JPEG XL encoder supporting lossy VarDCT and true lossless Modular encoding. Prokoptas exposes still-image operation only.                                                                                                                                                                                                           |
+| RAW (decode only)       | `rawler`           | —                             | LGPL-2.1                                                                                     | Decode-only camera RAW support. Pin the exact version and re-check its license on every upgrade. Confirm demosaic capabilities with real sample files before implementation is considered complete.                                                                                                                                           |
 
 ### 3.1 Format-scope rules
 
@@ -118,17 +118,17 @@ HEIC/HEIF is an input format only. The supported workflow is HEIC/HEIF → decod
 
 This is the canonical reference — every place in the UI or CLI that could imply “no quality loss” must trace back to this table, not to an assumption about the format name.
 
-| Format | Decode | Encode | How losslessness is actually controlled |
-|---|---|---|---|
-| PNG | Lossless | **Always lossless** | No quality mode is needed; PNG has no lossy encode path. |
-| JPEG | Lossy only | **Never lossless** | No setting can make JPEG output lossless. A quality value of 100 still does not become a lossless JPEG. |
-| TIFF | Lossless | **Always lossless** under the supported compression subset | No separate lossless toggle is required. |
-| BMP | Lossless | **Always lossless** | Uncompressed pixel storage. |
-| WebP | Lossless or lossy | **Both** via `zenwebp` | Lossless and lossy are explicit encoder modes. The Core must never infer losslessness from a high quality value alone. |
-| HEIC/HEIF | Lossy HEVC still-image decode | **Decode only** | HEIC/HEIF inputs are decoded to the normalized Core representation. There is no HEIC encoder path. HEVC patent/licensing status is separate from the crate's copyright license. |
-| AVIF | Lossless or lossy | **Both** | `Compression::Lossless` must select the encoder's genuine lossless configuration; quality 100 in a lossy configuration is not equivalent to true lossless. |
-| JXL | Lossless or lossy | **Both** | `Compression::Lossless` must select the encoder's true Modular/lossless configuration; a very low lossy distance is still lossy. |
-| RAW | Sensor-data decode can be bit-exact | N/A — decode only | RAW sensor decoding can preserve the stored samples, but demosaic is an interpolation step. “High Quality” demosaic means a better interpolation, not a lossless reconstruction. |
+| Format    | Decode                              | Encode                                                     | How losslessness is actually controlled                                                                                                                                          |
+| --------- | ----------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PNG       | Lossless                            | **Always lossless**                                        | No quality mode is needed; PNG has no lossy encode path.                                                                                                                         |
+| JPEG      | Lossy only                          | **Never lossless**                                         | No setting can make JPEG output lossless. A quality value of 100 still does not become a lossless JPEG.                                                                          |
+| TIFF      | Lossless                            | **Always lossless** under the supported compression subset | No separate lossless toggle is required.                                                                                                                                         |
+| BMP       | Lossless                            | **Always lossless**                                        | Uncompressed pixel storage.                                                                                                                                                      |
+| WebP      | Lossless or lossy                   | **Both** via `zenwebp`                                     | Lossless and lossy are explicit encoder modes. The Core must never infer losslessness from a high quality value alone.                                                           |
+| HEIC/HEIF | Lossy HEVC still-image decode       | **Decode only**                                            | HEIC/HEIF inputs are decoded to the normalized Core representation. There is no HEIC encoder path. HEVC patent/licensing status is separate from the crate's copyright license.  |
+| AVIF      | Lossless or lossy                   | **Both**                                                   | `Compression::Lossless` must select the encoder's genuine lossless configuration; quality 100 in a lossy configuration is not equivalent to true lossless.                       |
+| JXL       | Lossless or lossy                   | **Both**                                                   | `Compression::Lossless` must select the encoder's true Modular/lossless configuration; a very low lossy distance is still lossy.                                                 |
+| RAW       | Sensor-data decode can be bit-exact | N/A — decode only                                          | RAW sensor decoding can preserve the stored samples, but demosaic is an interpolation step. “High Quality” demosaic means a better interpolation, not a lossless reconstruction. |
 
 **Concrete implication for `EncodeOptions`:** compression mode is explicit. The shared model uses either `Lossy` with a quality value from 1–100 or `Lossless`. `Lossless` is legal only when the selected target encoder reports that it supports true lossless output. JPEG must reject it rather than silently falling back to a high-quality lossy configuration.
 
@@ -247,21 +247,21 @@ The WASM layer exposes three Core-facing operations:
 
 The browser UI binds directly to the shared Core option model:
 
-| UI element | Bound field |
-|---|---|
-| Preset buttons (§4.4) | named preset constructors, then editable overrides |
-| Strictness toggle | `DecodeOptions.strict_metadata` |
-| Color-space force | `DecodeOptions.color_space_override` |
-| Auto-rotate toggle | `DecodeOptions.auto_rotate` |
-| RAW demosaic quality | `DecodeOptions.demosaic_quality`, labeled as interpolation quality |
-| Lossless toggle | `EncodeOptions.compression = Lossless`; hidden or disabled for targets that cannot support it |
-| Quality slider (1–100) | `EncodeOptions.compression = Lossy { quality }`; disabled while Lossless is active |
-| Bit-depth selector | `EncodeOptions.bit_depth` |
-| Chroma subsampling | `EncodeOptions.chroma_subsampling`; disabled while Lossless is active |
-| PNG filter type | `EncodeOptions.png_filter` |
-| Effort/speed | `EncodeOptions.effort` |
-| Noise synthesis / Gaborish | `EncodeOptions.jxl_noise_synthesis` / `jxl_gaborish` |
-| Metadata checkboxes | `EncodeOptions.metadata_retention` |
+| UI element                 | Bound field                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------- |
+| Preset buttons (§4.4)      | named preset constructors, then editable overrides                                            |
+| Strictness toggle          | `DecodeOptions.strict_metadata`                                                               |
+| Color-space force          | `DecodeOptions.color_space_override`                                                          |
+| Auto-rotate toggle         | `DecodeOptions.auto_rotate`                                                                   |
+| RAW demosaic quality       | `DecodeOptions.demosaic_quality`, labeled as interpolation quality                            |
+| Lossless toggle            | `EncodeOptions.compression = Lossless`; hidden or disabled for targets that cannot support it |
+| Quality slider (1–100)     | `EncodeOptions.compression = Lossy { quality }`; disabled while Lossless is active            |
+| Bit-depth selector         | `EncodeOptions.bit_depth`                                                                     |
+| Chroma subsampling         | `EncodeOptions.chroma_subsampling`; disabled while Lossless is active                         |
+| PNG filter type            | `EncodeOptions.png_filter`                                                                    |
+| Effort/speed               | `EncodeOptions.effort`                                                                        |
+| Noise synthesis / Gaborish | `EncodeOptions.jxl_noise_synthesis` / `jxl_gaborish`                                          |
+| Metadata checkboxes        | `EncodeOptions.metadata_retention`                                                            |
 
 “Architect Mode” is a UI visibility gate over the same `EncodeOptions` structure. It must not fork the underlying model. Availability of the Lossless control is driven by the Core lossless-capability query at runtime rather than duplicated as frontend format logic.
 
