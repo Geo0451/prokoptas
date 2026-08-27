@@ -10,6 +10,13 @@ The initial workspace contains:
 - `prok-cli`: native `prok` binary shell
 - `prok-wasm`: `wasm-bindgen` shell
 
+The CLI currently supports the lossy JPEG path and PNG path:
+
+```sh
+cargo run -p prok-cli -- input.png output.jpg
+cargo run -p prok-cli -- input.jpg output.png
+```
+
 Run the checks with:
 
 ```sh

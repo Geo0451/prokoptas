@@ -2,6 +2,7 @@
 
 mod codec;
 mod image;
+mod jpeg;
 mod options;
 mod png;
 mod registry;
@@ -10,6 +11,7 @@ use std::fmt;
 
 pub use codec::{Decoder, Encoder};
 pub use image::{BitDepth, ColorSpace, DecodedImage, ImageMetadata, Orientation, PixelBuffer};
+pub use jpeg::{JpegDecoder, JpegEncoder, JPEG_REGISTRY};
 pub use options::{
     ChromaSubsampling, Compression, CropRect, DecodeOptions, DemosaicQuality, EncodeOptions,
     MetadataRetention, PngFilter,
