@@ -1,0 +1,16 @@
+[package]
+name = "prok-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "prok"
+path = "src/main.rs"
+
+[dependencies]
+prok-core = { path = "../prok-core" }
+
+[lints]
+workspace = true
