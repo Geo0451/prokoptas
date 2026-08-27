@@ -118,6 +118,14 @@ impl EncodeOptions {
                 message: "effort must be between 0 and 10".to_owned(),
             });
         }
+        if matches!(
+            (encoder.lossless_capability(), self.compression),
+            (crate::LosslessCapability::Always, Compression::Lossy { .. })
+        ) {
+            return Err(Error::InvalidOptions {
+                message: "the selected encoder only supports lossless output".to_owned(),
+            });
+        }
         if matches!(self.compression, Compression::Lossless)
             && encoder.lossless_capability() == crate::LosslessCapability::Never
         {

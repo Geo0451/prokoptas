@@ -3,6 +3,7 @@
 mod codec;
 mod image;
 mod options;
+mod png;
 mod registry;
 
 use std::fmt;
@@ -13,6 +14,7 @@ pub use options::{
     ChromaSubsampling, Compression, CropRect, DecodeOptions, DemosaicQuality, EncodeOptions,
     MetadataRetention, PngFilter,
 };
+pub use png::{PngDecoder, PngEncoder, PNG_REGISTRY};
 pub use registry::{FormatRegistry, FormatTag, LosslessCapability};
 
 /// The stable machine-readable categories exposed by the Core boundary.
