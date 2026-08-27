@@ -17,6 +17,12 @@ The project intentionally supports **still images only**. Multi-frame image work
 
 **Design priority: transparency about lossy vs. lossless.** Every format and every encode path in this spec is labeled with its actual lossless capability, not an assumed one. Several formats support both modes depending on options, while JPEG never supports lossless encoding. No UI control or CLI flag should imply losslessness that the underlying encoder does not actually deliver. See §3.2 and §4.
 
+### Current implementation status
+
+Phases 0–4 are currently implemented and verified for the Core model, PNG, JPEG, and WebP still-image paths. The CLI supports PNG, JPEG, and WebP input/output selected by format probe and output extension. JPEG output is lossy at the current default quality of 75; PNG output is lossless; WebP output defaults to lossy quality 75. The CLI does not yet expose the full option set listed in §5.1, including a user-selectable quality flag.
+
+The remaining formats and the browser frontend are architectural targets and are not yet implemented.
+
 ---
 
 ## 2. Architecture
@@ -96,7 +102,7 @@ All selected production codec paths must be pure Rust with no C/C++ FFI dependen
 | **JPEG** | `zune-jpeg` | `jpeg-encoder` | MIT/Apache-2.0/Zlib | Baseline + progressive decode only; no lossless JPEG input mode. JPEG output is always lossy regardless of quality setting. |
 | TIFF | `tiff` | `tiff` | MIT/Apache-2.0 | Supported compression subset is baseline, LZW, and PackBits. No fax compression and no JPEG-in-TIFF path. |
 | BMP | `image` (built-in) | `image` (built-in) | MIT/Apache-2.0 | Uncompressed and lossless. |
-| **WebP** | `image-webp` | **`webp-rust` 0.3.0** | MIT/Apache-2.0 for `webp-rust` | Still-image WebP only. `webp-rust` provides explicit lossy VP8 and lossless VP8L encoding from RGBA and does not require C/C++ FFI. |
+| **WebP** | `image-webp` 0.2.4 | **`zenwebp` 0.4.4** | MIT/Apache-2.0 for `image-webp`; AGPL-3.0-only OR LicenseRef-Imazen-Commercial for `zenwebp` | Still-image WebP only. `zenwebp` provides pure-Rust lossy VP8 and lossless VP8L encoding from RGBA, with explicit quality and effort controls. Animated WebP is rejected by the Core adapter. |
 | **HEIC/HEIF** | **`heic` 0.1.6** | — | AGPL-3.0-only OR LicenseRef-Imazen-Commercial | Pure-Rust, still-image HEIC/HEIF decoder with no C/C++ dependencies. `#![forbid(unsafe_code)]`, `no_std + alloc` compatible, and supports RGBA8 decoding plus resource limits. HEIC encoding is out of scope. HEVC/H.265 patent rights are not granted by the crate's software license and must be treated as a separate legal consideration. |
 | **AVIF** | `zenavif` 0.1.7 | `zenavif` 0.1.7 with `encode` | AGPL-3.0-only OR LicenseRef-Imazen-Commercial | Pure-Rust AVIF codec. Default decode path uses `rav1d-safe` and is safe Rust. Encoding is provided through `zenravif` when the `encode` feature is enabled. Prokoptas supports still images only even though the underlying codec can handle animation and other auxiliary image features. |
 | **JXL** | `jxl-oxide` | `jxl-encoder` 0.3.1 | Decode: MIT/Apache-2.0. Encode: AGPL-3.0-only OR LicenseRef-Imazen-Commercial | Pure-Rust JPEG XL encoder supporting lossy VarDCT and true lossless Modular encoding. Prokoptas exposes still-image operation only. |
@@ -118,7 +124,7 @@ This is the canonical reference — every place in the UI or CLI that could impl
 | JPEG | Lossy only | **Never lossless** | No setting can make JPEG output lossless. A quality value of 100 still does not become a lossless JPEG. |
 | TIFF | Lossless | **Always lossless** under the supported compression subset | No separate lossless toggle is required. |
 | BMP | Lossless | **Always lossless** | Uncompressed pixel storage. |
-| WebP | Lossless or lossy | **Both** via `webp-rust` | Lossless and lossy are explicit encoder modes. The Core must never infer losslessness from a high quality value alone. |
+| WebP | Lossless or lossy | **Both** via `zenwebp` | Lossless and lossy are explicit encoder modes. The Core must never infer losslessness from a high quality value alone. |
 | HEIC/HEIF | Lossy HEVC still-image decode | **Decode only** | HEIC/HEIF inputs are decoded to the normalized Core representation. There is no HEIC encoder path. HEVC patent/licensing status is separate from the crate's copyright license. |
 | AVIF | Lossless or lossy | **Both** | `Compression::Lossless` must select the encoder's genuine lossless configuration; quality 100 in a lossy configuration is not equivalent to true lossless. |
 | JXL | Lossless or lossy | **Both** | `Compression::Lossless` must select the encoder's true Modular/lossless configuration; a very low lossy distance is still lossy. |
@@ -129,7 +135,7 @@ This is the canonical reference — every place in the UI or CLI that could impl
 ### 3.3 Implementation verification items (resolve before first release)
 
 - [ ] Confirm `rawler`'s demosaic capabilities (fast bilinear vs. adaptive) with a decode spike against 3–5 sample RAW files, with CR2, NEF, and DNG represented at minimum.
-- [ ] Verify that `webp-rust`, `zenavif`, `jxl-encoder`, and `heic` build cleanly for `wasm32-unknown-unknown` with only the project-approved pure-Rust feature set enabled.
+- [x] Verify that `zenwebp`, `zenavif`, `jxl-encoder`, and `heic` build cleanly for `wasm32-unknown-unknown` with only the project-approved pure-Rust feature set enabled.
 - [ ] Keep `zenavif`'s native-only `unsafe-asm` feature disabled for the WASM build because it introduces C FFI. It may be evaluated separately for the native CLI only if the project accepts having different performance feature sets by platform.
 - [ ] Confirm the exact public lossless configuration used by the selected `zenavif` and `jxl-encoder` versions before wiring their adapters to `Compression::Lossless`.
 - [ ] Run a full dependency/license audit before the first release, including optional/transitive dependencies, and confirm that the production feature set contains no accidental C/C++ codec path.
@@ -173,7 +179,7 @@ Codec-specific parameters stay inside the relevant encoder adapter. The shared C
 
 The public compression mode is explicitly either Lossy with a quality value from 1–100 or Lossless. It is never inferred from a quality value. A target that cannot perform true lossless encoding must report that fact through its capability declaration and reject a Lossless request during validation.
 
-For JPEG, Lossless is invalid. For WebP, Lossless maps to the `webp-rust` lossless encoder path and Lossy maps to its lossy encoder path. For AVIF and JXL, Lossless maps to their genuine lossless encoder configurations.
+For JPEG, Lossless is invalid. For WebP, Lossless maps to the `zenwebp` lossless encoder path and Lossy maps to its lossy encoder path. For AVIF and JXL, Lossless maps to their genuine lossless encoder configurations.
 
 ### 4.4 Presets
 
@@ -191,7 +197,7 @@ Presets are named `EncodeOptions` constructors and do not create a separate conv
 
 ### 5.1 CLI (`prok`, via `clap`)
 
-The CLI accepts an input path, an output directory, and the documented general, decoder, encoder, and transform options.
+The target CLI accepts an input path, an output directory, and the documented general, decoder, encoder, and transform options. The current Phase 0–4 CLI implements only the input path, output path, format dispatch, and default encode settings; the remaining flags are planned interface surface.
 
 General options:
 

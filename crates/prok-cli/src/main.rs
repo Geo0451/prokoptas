@@ -2,7 +2,7 @@ use std::{env, fs};
 
 use prok_core::{
     Compression, EncodeOptions, JpegDecoder, JpegEncoder, MetadataRetention, PngDecoder,
-    PngEncoder, Result, JPEG_REGISTRY, PNG_REGISTRY,
+    PngEncoder, Result, WebpDecoder, WebpEncoder, JPEG_REGISTRY, PNG_REGISTRY, WEBP_REGISTRY,
 };
 
 fn run() -> Result<()> {
@@ -10,16 +10,19 @@ fn run() -> Result<()> {
     let input_path = arguments
         .next()
         .ok_or_else(|| prok_core::Error::InvalidOptions {
-            message: "usage: prok <input.(png|jpg|jpeg)> <output.(png|jpg|jpeg)>".to_owned(),
+            message: "usage: prok <input.(png|jpg|jpeg|webp)> <output.(png|jpg|jpeg|webp)>"
+                .to_owned(),
         })?;
     let output_path = arguments
         .next()
         .ok_or_else(|| prok_core::Error::InvalidOptions {
-            message: "usage: prok <input.(png|jpg|jpeg)> <output.(png|jpg|jpeg)>".to_owned(),
+            message: "usage: prok <input.(png|jpg|jpeg|webp)> <output.(png|jpg|jpeg|webp)>"
+                .to_owned(),
         })?;
     if arguments.next().is_some() {
         return Err(prok_core::Error::InvalidOptions {
-            message: "usage: prok <input.(png|jpg|jpeg)> <output.(png|jpg|jpeg)>".to_owned(),
+            message: "usage: prok <input.(png|jpg|jpeg|webp)> <output.(png|jpg|jpeg|webp)>"
+                .to_owned(),
         });
     }
 
@@ -34,6 +37,8 @@ fn convert(input_path: &str, output_path: &str) -> Result<()> {
         &PngDecoder as &dyn prok_core::Decoder
     } else if JPEG_REGISTRY.decoder_for(&input).is_ok() {
         &JpegDecoder as &dyn prok_core::Decoder
+    } else if WEBP_REGISTRY.decoder_for(&input).is_ok() {
+        &WebpDecoder as &dyn prok_core::Decoder
     } else {
         return Err(prok_core::Error::UnsupportedFormat);
     };
@@ -68,9 +73,17 @@ fn convert(input_path: &str, output_path: &str) -> Result<()> {
                 ..EncodeOptions::default()
             },
         ),
+        "webp" => (
+            &WebpEncoder,
+            EncodeOptions {
+                compression: Compression::Lossy { quality: 75 },
+                bit_depth: prok_core::BitDepth::Eight,
+                ..EncodeOptions::default()
+            },
+        ),
         _ => {
             return Err(prok_core::Error::InvalidOptions {
-                message: "output extension must be .png, .jpg, or .jpeg".to_owned(),
+                message: "output extension must be .png, .jpg, .jpeg, or .webp".to_owned(),
             });
         }
     };
@@ -92,7 +105,7 @@ fn main() {
 mod tests {
     use prok_core::{
         BitDepth, ColorSpace, Compression, DecodedImage, Decoder, EncodeOptions, Encoder,
-        JpegDecoder, MetadataRetention, PixelBuffer, PngDecoder, PngEncoder,
+        JpegDecoder, MetadataRetention, PixelBuffer, PngDecoder, PngEncoder, WebpDecoder,
     };
 
     #[test]
@@ -175,6 +188,48 @@ mod tests {
         let decoded = JpegDecoder
             .decode(&output, &Default::default())
             .expect("decode JPEG output");
+        assert_eq!((decoded.width, decoded.height), (2, 1));
+        std::fs::remove_dir_all(directory).expect("remove temporary directory");
+    }
+
+    #[test]
+    fn cli_converts_png_input_to_webp_output() {
+        let directory = std::env::temp_dir().join(format!("prok-cli-webp-{}", std::process::id()));
+        std::fs::create_dir_all(&directory).expect("create temporary directory");
+        let input_path = directory.join("input.png");
+        let output_path = directory.join("output.webp");
+        let source = DecodedImage::new(
+            PixelBuffer::rgba8(vec![255, 0, 0, 255, 0, 255, 0, 255], 2, 1)
+                .expect("valid fixture pixels"),
+            2,
+            1,
+            ColorSpace::Srgb,
+            BitDepth::Eight,
+        )
+        .expect("valid fixture image");
+        let encoded = PngEncoder
+            .encode(
+                &source,
+                &EncodeOptions {
+                    compression: Compression::Lossless,
+                    bit_depth: BitDepth::Eight,
+                    ..EncodeOptions::default()
+                },
+            )
+            .expect("encode fixture");
+        std::fs::write(&input_path, encoded).expect("write input fixture");
+
+        super::convert(
+            input_path.to_str().expect("UTF-8 input path"),
+            output_path.to_str().expect("UTF-8 output path"),
+        )
+        .expect("run WebP conversion");
+
+        let output = std::fs::read(&output_path).expect("read WebP output");
+        assert!(WebpDecoder.probe(&output));
+        let decoded = WebpDecoder
+            .decode(&output, &Default::default())
+            .expect("decode WebP output");
         assert_eq!((decoded.width, decoded.height), (2, 1));
         std::fs::remove_dir_all(directory).expect("remove temporary directory");
     }

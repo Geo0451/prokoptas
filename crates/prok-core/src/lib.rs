@@ -6,6 +6,7 @@ mod jpeg;
 mod options;
 mod png;
 mod registry;
+mod webp;
 
 use std::fmt;
 
@@ -18,6 +19,7 @@ pub use options::{
 };
 pub use png::{PngDecoder, PngEncoder, PNG_REGISTRY};
 pub use registry::{FormatRegistry, FormatTag, LosslessCapability};
+pub use webp::{WebpDecoder, WebpEncoder, WEBP_REGISTRY};
 
 /// The stable machine-readable categories exposed by the Core boundary.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

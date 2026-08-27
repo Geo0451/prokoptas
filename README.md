@@ -10,11 +10,12 @@ The initial workspace contains:
 - `prok-cli`: native `prok` binary shell
 - `prok-wasm`: `wasm-bindgen` shell
 
-The CLI currently supports the lossy JPEG path and PNG path:
+The CLI currently supports PNG, JPEG, and WebP paths. WebP output defaults to lossy quality 75:
 
 ```sh
 cargo run -p prok-cli -- input.png output.jpg
 cargo run -p prok-cli -- input.jpg output.png
+cargo run -p prok-cli -- input.png output.webp
 ```
 
 Run the checks with:
