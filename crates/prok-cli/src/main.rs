@@ -1,8 +1,9 @@
 use std::{env, fs};
 
 use prok_core::{
-    Compression, EncodeOptions, JpegDecoder, JpegEncoder, MetadataRetention, PngDecoder,
-    PngEncoder, Result, WebpDecoder, WebpEncoder, JPEG_REGISTRY, PNG_REGISTRY, WEBP_REGISTRY,
+    Compression, EncodeOptions, HeicDecoder, JpegDecoder, JpegEncoder, MetadataRetention,
+    PngDecoder, PngEncoder, Result, WebpDecoder, WebpEncoder, HEIC_REGISTRY, JPEG_REGISTRY,
+    PNG_REGISTRY, WEBP_REGISTRY,
 };
 
 fn run() -> Result<()> {
@@ -10,19 +11,22 @@ fn run() -> Result<()> {
     let input_path = arguments
         .next()
         .ok_or_else(|| prok_core::Error::InvalidOptions {
-            message: "usage: prok <input.(png|jpg|jpeg|webp)> <output.(png|jpg|jpeg|webp)>"
-                .to_owned(),
+            message:
+                "usage: prok <input.(png|jpg|jpeg|webp|heic|heif)> <output.(png|jpg|jpeg|webp)>"
+                    .to_owned(),
         })?;
     let output_path = arguments
         .next()
         .ok_or_else(|| prok_core::Error::InvalidOptions {
-            message: "usage: prok <input.(png|jpg|jpeg|webp)> <output.(png|jpg|jpeg|webp)>"
-                .to_owned(),
+            message:
+                "usage: prok <input.(png|jpg|jpeg|webp|heic|heif)> <output.(png|jpg|jpeg|webp)>"
+                    .to_owned(),
         })?;
     if arguments.next().is_some() {
         return Err(prok_core::Error::InvalidOptions {
-            message: "usage: prok <input.(png|jpg|jpeg|webp)> <output.(png|jpg|jpeg|webp)>"
-                .to_owned(),
+            message:
+                "usage: prok <input.(png|jpg|jpeg|webp|heic|heif)> <output.(png|jpg|jpeg|webp)>"
+                    .to_owned(),
         });
     }
 
@@ -39,6 +43,8 @@ fn convert(input_path: &str, output_path: &str) -> Result<()> {
         &JpegDecoder as &dyn prok_core::Decoder
     } else if WEBP_REGISTRY.decoder_for(&input).is_ok() {
         &WebpDecoder as &dyn prok_core::Decoder
+    } else if HEIC_REGISTRY.decoder_for(&input).is_ok() {
+        &HeicDecoder as &dyn prok_core::Decoder
     } else {
         return Err(prok_core::Error::UnsupportedFormat);
     };

@@ -2,6 +2,7 @@ use std::io::Cursor;
 
 use png::{BitDepth as PngBitDepth, ColorType, Transformations};
 
+use crate::image::{apply_orientation, parse_exif_orientation};
 use crate::{
     BitDepth, ColorSpace, DecodeOptions, DecodedImage, Decoder, EncodeOptions, Encoder, Error,
     FormatRegistry, FormatTag, ImageMetadata, LosslessCapability, Orientation, PixelBuffer, Result,
@@ -271,114 +272,6 @@ fn gray_alpha_16_to_rgba(data: &[u8]) -> Result<Vec<u16>> {
         output.extend_from_slice(&[pixel[0], pixel[0], pixel[0], pixel[1]]);
     }
     Ok(output)
-}
-
-fn parse_exif_orientation(data: &[u8]) -> Option<Orientation> {
-    let data = data.strip_prefix(b"Exif\0\0").unwrap_or(data);
-    let little_endian = match data.get(..2)? {
-        b"II" => true,
-        b"MM" => false,
-        _ => return None,
-    };
-    let read_u16 = |bytes: &[u8]| {
-        let bytes = [bytes[0], bytes[1]];
-        if little_endian {
-            u16::from_le_bytes(bytes)
-        } else {
-            u16::from_be_bytes(bytes)
-        }
-    };
-    let read_u32 = |bytes: &[u8]| {
-        let bytes = [bytes[0], bytes[1], bytes[2], bytes[3]];
-        if little_endian {
-            u32::from_le_bytes(bytes)
-        } else {
-            u32::from_be_bytes(bytes)
-        }
-    };
-    if read_u16(data.get(2..4)?) != 42 {
-        return None;
-    }
-    let ifd_offset = usize::try_from(read_u32(data.get(4..8)?)).ok()?;
-    let count = usize::from(read_u16(data.get(ifd_offset..ifd_offset + 2)?));
-    for index in 0..count {
-        let entry = ifd_offset + 2 + index * 12;
-        if read_u16(data.get(entry..entry + 2)?) == 0x0112 {
-            let value = read_u16(data.get(entry + 8..entry + 10)?);
-            return Some(match value {
-                1 => Orientation::Normal,
-                2 => Orientation::FlipHorizontal,
-                3 => Orientation::Rotate180,
-                4 => Orientation::FlipVertical,
-                5 => Orientation::Transpose,
-                6 => Orientation::Rotate90,
-                7 => Orientation::Transverse,
-                8 => Orientation::Rotate270,
-                _ => return None,
-            });
-        }
-    }
-    None
-}
-
-fn apply_orientation(image: &mut DecodedImage) -> Result<()> {
-    let orientation = image.orientation;
-    let (new_width, new_height) = match orientation {
-        Orientation::Transpose
-        | Orientation::Rotate90
-        | Orientation::Transverse
-        | Orientation::Rotate270 => (image.height, image.width),
-        _ => (image.width, image.height),
-    };
-    match &image.pixels {
-        PixelBuffer::Rgba8(data) => {
-            image.pixels = PixelBuffer::Rgba8(remap(data, image.width, image.height, orientation))
-        }
-        PixelBuffer::Rgba16(data) => {
-            image.pixels = PixelBuffer::Rgba16(remap(data, image.width, image.height, orientation))
-        }
-    }
-    image.width = new_width;
-    image.height = new_height;
-    image.orientation_applied = true;
-    Ok(())
-}
-
-fn remap<T: Copy>(data: &[T], width: u32, height: u32, orientation: Orientation) -> Vec<T> {
-    let width = width as usize;
-    let height = height as usize;
-    let channels = 4;
-    let new_width = if matches!(
-        orientation,
-        Orientation::Transpose
-            | Orientation::Rotate90
-            | Orientation::Transverse
-            | Orientation::Rotate270
-    ) {
-        height
-    } else {
-        width
-    };
-    let mut output = vec![data[0]; data.len()];
-    for y in 0..height {
-        for x in 0..width {
-            let (new_x, new_y) = match orientation {
-                Orientation::Normal => (x, y),
-                Orientation::FlipHorizontal => (width - 1 - x, y),
-                Orientation::Rotate180 => (width - 1 - x, height - 1 - y),
-                Orientation::FlipVertical => (x, height - 1 - y),
-                Orientation::Transpose => (y, x),
-                Orientation::Rotate90 => (height - 1 - y, x),
-                Orientation::Transverse => (height - 1 - y, width - 1 - x),
-                Orientation::Rotate270 => (y, width - 1 - x),
-            };
-            let source = (y * width + x) * channels;
-            let destination = (new_y * new_width + new_x) * channels;
-            output[destination..destination + channels]
-                .copy_from_slice(&data[source..source + channels]);
-        }
-    }
-    output
 }
 
 #[cfg(test)]

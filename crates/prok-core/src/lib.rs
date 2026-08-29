@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod codec;
+mod heic;
 mod image;
 mod jpeg;
 mod options;
@@ -11,6 +12,7 @@ mod webp;
 use std::fmt;
 
 pub use codec::{Decoder, Encoder};
+pub use heic::{HeicDecoder, HEIC_REGISTRY};
 pub use image::{BitDepth, ColorSpace, DecodedImage, ImageMetadata, Orientation, PixelBuffer};
 pub use jpeg::{JpegDecoder, JpegEncoder, JPEG_REGISTRY};
 pub use options::{
