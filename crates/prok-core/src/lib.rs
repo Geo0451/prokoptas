@@ -1,16 +1,20 @@
 #![forbid(unsafe_code)]
 
+mod bmp;
 mod codec;
 mod heic;
 mod image;
 mod jpeg;
 mod options;
 mod png;
+mod raw;
 mod registry;
+mod tiff;
 mod webp;
 
 use std::fmt;
 
+pub use bmp::{BmpDecoder, BmpEncoder, BMP_REGISTRY};
 pub use codec::{Decoder, Encoder};
 pub use heic::{HeicDecoder, HEIC_REGISTRY};
 pub use image::{BitDepth, ColorSpace, DecodedImage, ImageMetadata, Orientation, PixelBuffer};
@@ -20,7 +24,9 @@ pub use options::{
     MetadataRetention, PngFilter,
 };
 pub use png::{PngDecoder, PngEncoder, PNG_REGISTRY};
+pub use raw::{RawDecoder, RAW_REGISTRY};
 pub use registry::{FormatRegistry, FormatTag, LosslessCapability};
+pub use tiff::{TiffDecoder, TiffEncoder, TIFF_REGISTRY};
 pub use webp::{WebpDecoder, WebpEncoder, WEBP_REGISTRY};
 
 /// The stable machine-readable categories exposed by the Core boundary.

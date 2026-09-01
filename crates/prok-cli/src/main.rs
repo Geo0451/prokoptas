@@ -1,9 +1,10 @@
 use std::{env, fs};
 
 use prok_core::{
-    Compression, EncodeOptions, HeicDecoder, JpegDecoder, JpegEncoder, MetadataRetention,
-    PngDecoder, PngEncoder, Result, WebpDecoder, WebpEncoder, HEIC_REGISTRY, JPEG_REGISTRY,
-    PNG_REGISTRY, WEBP_REGISTRY,
+    BmpDecoder, BmpEncoder, Compression, EncodeOptions, HeicDecoder, JpegDecoder, JpegEncoder,
+    MetadataRetention, PngDecoder, PngEncoder, RawDecoder, Result, TiffDecoder, TiffEncoder,
+    WebpDecoder, WebpEncoder, BMP_REGISTRY, HEIC_REGISTRY, JPEG_REGISTRY, PNG_REGISTRY,
+    RAW_REGISTRY, TIFF_REGISTRY, WEBP_REGISTRY,
 };
 
 fn run() -> Result<()> {
@@ -12,20 +13,20 @@ fn run() -> Result<()> {
         .next()
         .ok_or_else(|| prok_core::Error::InvalidOptions {
             message:
-                "usage: prok <input.(png|jpg|jpeg|webp|heic|heif)> <output.(png|jpg|jpeg|webp)>"
+                "usage: prok <input.(png|jpg|jpeg|webp|tiff|bmp|heic|heif)> <output.(png|jpg|jpeg|webp|tiff|bmp)>"
                     .to_owned(),
         })?;
     let output_path = arguments
         .next()
         .ok_or_else(|| prok_core::Error::InvalidOptions {
             message:
-                "usage: prok <input.(png|jpg|jpeg|webp|heic|heif)> <output.(png|jpg|jpeg|webp)>"
+                "usage: prok <input.(png|jpg|jpeg|webp|tiff|bmp|heic|heif)> <output.(png|jpg|jpeg|webp|tiff|bmp)>"
                     .to_owned(),
         })?;
     if arguments.next().is_some() {
         return Err(prok_core::Error::InvalidOptions {
             message:
-                "usage: prok <input.(png|jpg|jpeg|webp|heic|heif)> <output.(png|jpg|jpeg|webp)>"
+                "usage: prok <input.(png|jpg|jpeg|webp|tiff|bmp|heic|heif)> <output.(png|jpg|jpeg|webp|tiff|bmp)>"
                     .to_owned(),
         });
     }
@@ -43,6 +44,12 @@ fn convert(input_path: &str, output_path: &str) -> Result<()> {
         &JpegDecoder as &dyn prok_core::Decoder
     } else if WEBP_REGISTRY.decoder_for(&input).is_ok() {
         &WebpDecoder as &dyn prok_core::Decoder
+    } else if RAW_REGISTRY.decoder_for(&input).is_ok() {
+        &RawDecoder as &dyn prok_core::Decoder
+    } else if TIFF_REGISTRY.decoder_for(&input).is_ok() {
+        &TiffDecoder as &dyn prok_core::Decoder
+    } else if BMP_REGISTRY.decoder_for(&input).is_ok() {
+        &BmpDecoder as &dyn prok_core::Decoder
     } else if HEIC_REGISTRY.decoder_for(&input).is_ok() {
         &HeicDecoder as &dyn prok_core::Decoder
     } else {
@@ -87,9 +94,25 @@ fn convert(input_path: &str, output_path: &str) -> Result<()> {
                 ..EncodeOptions::default()
             },
         ),
+        "tiff" | "tif" => (
+            &TiffEncoder,
+            EncodeOptions {
+                compression: Compression::Lossless,
+                bit_depth,
+                ..EncodeOptions::default()
+            },
+        ),
+        "bmp" => (
+            &BmpEncoder,
+            EncodeOptions {
+                compression: Compression::Lossless,
+                bit_depth,
+                ..EncodeOptions::default()
+            },
+        ),
         _ => {
             return Err(prok_core::Error::InvalidOptions {
-                message: "output extension must be .png, .jpg, .jpeg, or .webp".to_owned(),
+                message: "output extension must be .png, .jpg, .jpeg, .webp, .tiff, or .bmp".to_owned(),
             });
         }
     };
