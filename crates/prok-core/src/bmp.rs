@@ -7,8 +7,8 @@ use std::io::Cursor;
 use ::image::{ImageReader, RgbaImage};
 
 use crate::{
-    BitDepth, ColorSpace, Compression, DecodeOptions, DecodedImage, Decoder, EncodeOptions,
-    Encoder, Error, FormatRegistry, FormatTag, LosslessCapability, PixelBuffer, Result,
+    BitDepth, ColorSpace, DecodeOptions, DecodedImage, Decoder, EncodeOptions, Encoder, Error,
+    FormatRegistry, FormatTag, LosslessCapability, PixelBuffer, Result,
 };
 
 pub struct BmpDecoder;
@@ -34,7 +34,7 @@ impl Decoder for BmpDecoder {
         input.starts_with(b"BM")
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let cursor = Cursor::new(input);
         let reader = ImageReader::new(cursor)
             .with_guessed_format()
@@ -65,7 +65,7 @@ impl Decoder for BmpDecoder {
             PixelBuffer::rgba8(rgba_data, width, height)?,
             width,
             height,
-            options.color_space_override.unwrap_or(ColorSpace::Srgb),
+            ColorSpace::Srgb,
             BitDepth::Eight,
         )?;
 
@@ -82,7 +82,7 @@ impl Encoder for BmpEncoder {
         LosslessCapability::Always
     }
 
-    fn encode(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
+    fn encode_native(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
         options.validate(self)?;
 
         let rgba_data = match &image.pixels {
@@ -94,9 +94,11 @@ impl Encoder for BmpEncoder {
             }
         };
 
-        let rgba_image = RgbaImage::from_raw(image.width, image.height, rgba_data)
-            .ok_or_else(|| Error::CorruptData {
-                message: "BMP image buffer size mismatch".to_string(),
+        let rgba_image =
+            RgbaImage::from_raw(image.width, image.height, rgba_data).ok_or_else(|| {
+                Error::CorruptData {
+                    message: "BMP image buffer size mismatch".to_string(),
+                }
             })?;
 
         let mut output = Vec::new();
@@ -194,9 +196,7 @@ mod tests {
         assert!(BmpDecoder.probe(&encoded));
 
         // Decode back
-        let decoded = BmpDecoder
-            .decode(&encoded, &Default::default())
-            .unwrap();
+        let decoded = BmpDecoder.decode(&encoded, &Default::default()).unwrap();
 
         // Verify dimensions
         assert_eq!(decoded.width, width);

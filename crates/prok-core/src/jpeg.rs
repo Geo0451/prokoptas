@@ -25,7 +25,7 @@ impl Decoder for JpegDecoder {
         input.starts_with(&[0xff, 0xd8, 0xff])
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let decoder_options =
             DecoderOptions::default().jpeg_set_out_colorspace(ZuneColorSpace::RGB);
         let mut decoder = zune_jpeg::JpegDecoder::new_with_options(input, decoder_options);
@@ -45,7 +45,7 @@ impl Decoder for JpegDecoder {
             PixelBuffer::rgba8(rgba, width as u32, height as u32)?,
             width as u32,
             height as u32,
-            options.color_space_override.unwrap_or(ColorSpace::Srgb),
+            ColorSpace::Srgb,
             BitDepth::Eight,
         )?;
         image.metadata = ImageMetadata {
@@ -65,7 +65,7 @@ impl Encoder for JpegEncoder {
         LosslessCapability::Never
     }
 
-    fn encode(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
+    fn encode_native(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
         options.validate(self)?;
         let quality = match options.compression {
             crate::Compression::Lossy { quality } => quality,

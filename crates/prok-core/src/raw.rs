@@ -63,7 +63,7 @@ impl Decoder for RawDecoder {
         false
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         // Use rawler to decode the RAW file.
         // rawler's decode_file expects a file path, so write to a temp file.
         let temp_dir = std::env::temp_dir();
@@ -134,9 +134,7 @@ fn decode_raw_file(path: &std::path::Path, options: &DecodeOptions) -> Result<De
         PixelBuffer::rgba8(rgba, width, height)?,
         width,
         height,
-        options
-            .color_space_override
-            .unwrap_or(ColorSpace::Linear), // RAW is typically linear
+        ColorSpace::Linear,
         BitDepth::Eight,
     )?;
 

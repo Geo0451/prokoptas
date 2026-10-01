@@ -5,11 +5,11 @@
 
 use std::io::Cursor;
 
-use ::image::{ImageReader, RgbaImage};
+use ::image::{DynamicImage, ImageBuffer, ImageReader, Rgba, RgbaImage};
 
 use crate::{
-    BitDepth, ColorSpace, Compression, DecodeOptions, DecodedImage, Decoder, EncodeOptions,
-    Encoder, Error, FormatRegistry, FormatTag, LosslessCapability, PixelBuffer, Result,
+    BitDepth, ColorSpace, DecodeOptions, DecodedImage, Decoder, EncodeOptions, Encoder, Error,
+    FormatRegistry, FormatTag, LosslessCapability, PixelBuffer, Result,
 };
 
 pub struct TiffDecoder;
@@ -35,7 +35,7 @@ impl Decoder for TiffDecoder {
         input.starts_with(b"II\x2a\x00") || input.starts_with(b"MM\x00\x2a")
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let cursor = Cursor::new(input);
         let reader = ImageReader::new(cursor)
             .with_guessed_format()
@@ -59,16 +59,25 @@ impl Decoder for TiffDecoder {
 
         enforce_memory_limit(output_size, options.memory_limit_mb)?;
 
-        let rgba_image = image.to_rgba8();
-        let rgba_data = rgba_image.into_raw();
+        let (pixels, bit_depth) = if matches!(
+            &image,
+            DynamicImage::ImageLuma16(_)
+                | DynamicImage::ImageLumaA16(_)
+                | DynamicImage::ImageRgb16(_)
+                | DynamicImage::ImageRgba16(_)
+        ) {
+            (
+                PixelBuffer::rgba16(image.to_rgba16().into_raw(), width, height)?,
+                BitDepth::Sixteen,
+            )
+        } else {
+            (
+                PixelBuffer::rgba8(image.to_rgba8().into_raw(), width, height)?,
+                BitDepth::Eight,
+            )
+        };
 
-        let decoded = DecodedImage::new(
-            PixelBuffer::rgba8(rgba_data, width, height)?,
-            width,
-            height,
-            options.color_space_override.unwrap_or(ColorSpace::Srgb),
-            BitDepth::Eight,
-        )?;
+        let decoded = DecodedImage::new(pixels, width, height, ColorSpace::Srgb, bit_depth)?;
 
         Ok(decoded)
     }
@@ -83,25 +92,32 @@ impl Encoder for TiffEncoder {
         LosslessCapability::Always
     }
 
-    fn encode(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
+    fn encode_native(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
         options.validate(self)?;
 
-        let rgba_data = match &image.pixels {
-            PixelBuffer::Rgba8(data) => data.clone(),
-            PixelBuffer::Rgba16(_) => {
-                return Err(Error::InvalidOptions {
-                    message: "TIFF encoder requires RGBA8 pixels".to_owned(),
-                });
+        let encoded_image = match &image.pixels {
+            PixelBuffer::Rgba8(data) => DynamicImage::ImageRgba8(
+                RgbaImage::from_raw(image.width, image.height, data.clone()).ok_or_else(|| {
+                    Error::CorruptData {
+                        message: "TIFF image buffer size mismatch".to_string(),
+                    }
+                })?,
+            ),
+            PixelBuffer::Rgba16(data) => {
+                let rgba_image = ImageBuffer::<Rgba<u16>, Vec<u16>>::from_raw(
+                    image.width,
+                    image.height,
+                    data.clone(),
+                )
+                .ok_or_else(|| Error::CorruptData {
+                    message: "TIFF image buffer size mismatch".to_string(),
+                })?;
+                DynamicImage::ImageRgba16(rgba_image)
             }
         };
 
-        let rgba_image = RgbaImage::from_raw(image.width, image.height, rgba_data)
-            .ok_or_else(|| Error::CorruptData {
-                message: "TIFF image buffer size mismatch".to_string(),
-            })?;
-
         let mut output = Vec::new();
-        rgba_image
+        encoded_image
             .write_to(&mut Cursor::new(&mut output), ::image::ImageFormat::Tiff)
             .map_err(|e| Error::EncodingFailed {
                 message: format!("TIFF encoding failed: {e}"),
@@ -203,9 +219,7 @@ mod tests {
         assert!(TiffDecoder.probe(&encoded));
 
         // Decode back
-        let decoded = TiffDecoder
-            .decode(&encoded, &Default::default())
-            .unwrap();
+        let decoded = TiffDecoder.decode(&encoded, &Default::default()).unwrap();
 
         // Verify dimensions
         assert_eq!(decoded.width, width);

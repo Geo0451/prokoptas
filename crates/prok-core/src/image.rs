@@ -145,6 +145,136 @@ impl DecodedImage {
             metadata: ImageMetadata::default(),
         })
     }
+
+    pub(crate) fn convert_color_space(&mut self, target: ColorSpace) {
+        if self.color_space == target {
+            return;
+        }
+
+        let max_sample = sample_max(self.bit_depth);
+        match &mut self.pixels {
+            PixelBuffer::Rgba8(pixels) => {
+                for pixel in pixels.chunks_exact_mut(4) {
+                    let rgb = convert_rgb_values(
+                        [
+                            f64::from(pixel[0]),
+                            f64::from(pixel[1]),
+                            f64::from(pixel[2]),
+                        ],
+                        255.0,
+                        self.color_space,
+                        target,
+                    );
+                    pixel[..3].copy_from_slice(&rgb.map(|value| value.round() as u8));
+                }
+            }
+            PixelBuffer::Rgba16(pixels) => {
+                for pixel in pixels.chunks_exact_mut(4) {
+                    let rgb = convert_rgb_values(
+                        [
+                            f64::from(pixel[0]),
+                            f64::from(pixel[1]),
+                            f64::from(pixel[2]),
+                        ],
+                        max_sample,
+                        self.color_space,
+                        target,
+                    );
+                    pixel[..3].copy_from_slice(&rgb.map(|value| value.round() as u16));
+                }
+            }
+        }
+        self.color_space = target;
+    }
+
+    pub(crate) fn convert_bit_depth(&mut self, target: BitDepth) {
+        if self.bit_depth == target {
+            return;
+        }
+
+        let source_max = sample_max(self.bit_depth);
+        let target_max = sample_max(target);
+        let pixels: Vec<u16> = match &self.pixels {
+            PixelBuffer::Rgba8(data) => data
+                .iter()
+                .map(|value| scale_sample(f64::from(*value), 255.0, target_max))
+                .collect(),
+            PixelBuffer::Rgba16(data) => data
+                .iter()
+                .map(|value| scale_sample(f64::from(*value), source_max, target_max))
+                .collect(),
+        };
+        self.pixels = if target == BitDepth::Eight {
+            PixelBuffer::Rgba8(pixels.into_iter().map(|value| value as u8).collect())
+        } else {
+            PixelBuffer::Rgba16(pixels)
+        };
+        self.bit_depth = target;
+    }
+}
+
+fn sample_max(bit_depth: BitDepth) -> f64 {
+    ((1_u32 << bit_depth.bits()) - 1) as f64
+}
+
+fn scale_sample(value: f64, source_max: f64, target_max: f64) -> u16 {
+    (value * target_max / source_max)
+        .round()
+        .clamp(0.0, target_max) as u16
+}
+
+fn convert_rgb_values(
+    rgb: [f64; 3],
+    max_sample: f64,
+    source: ColorSpace,
+    target: ColorSpace,
+) -> [f64; 3] {
+    let mut linear = rgb.map(|channel| decode_transfer(channel / max_sample, source));
+
+    if source == ColorSpace::DisplayP3 && target != ColorSpace::DisplayP3 {
+        linear = p3_to_srgb(linear);
+    } else if source != ColorSpace::DisplayP3 && target == ColorSpace::DisplayP3 {
+        linear = srgb_to_p3(linear);
+    }
+
+    linear.map(|value| encode_transfer(value, target) * max_sample)
+}
+
+fn decode_transfer(value: f64, color_space: ColorSpace) -> f64 {
+    if color_space == ColorSpace::Linear {
+        value
+    } else if value <= 0.04045 {
+        value / 12.92
+    } else {
+        ((value + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+fn encode_transfer(value: f64, color_space: ColorSpace) -> f64 {
+    let value = value.max(0.0);
+    if color_space == ColorSpace::Linear {
+        value
+    } else if value <= 0.0031308 {
+        value * 12.92
+    } else {
+        1.055 * value.powf(1.0 / 2.4) - 0.055
+    }
+}
+
+fn srgb_to_p3(rgb: [f64; 3]) -> [f64; 3] {
+    [
+        0.82259287 * rgb[0] + 0.17753395 * rgb[1],
+        0.03319951 * rgb[0] + 0.96678350 * rgb[1],
+        0.01708535 * rgb[0] + 0.07239572 * rgb[1] + 0.91030148 * rgb[2],
+    ]
+}
+
+fn p3_to_srgb(rgb: [f64; 3]) -> [f64; 3] {
+    [
+        1.22494018 * rgb[0] - 0.22494018 * rgb[1],
+        -0.04205695 * rgb[0] + 1.04205695 * rgb[1],
+        -0.01963755 * rgb[0] - 0.07863605 * rgb[1] + 1.09827360 * rgb[2],
+    ]
 }
 
 pub(crate) fn parse_exif_orientation(data: &[u8]) -> Option<Orientation> {
@@ -193,6 +323,74 @@ pub(crate) fn parse_exif_orientation(data: &[u8]) -> Option<Orientation> {
         }
     }
     None
+}
+
+pub(crate) fn set_exif_orientation(data: &mut [u8], orientation: u16) {
+    let prefix_len = usize::from(data.starts_with(b"Exif\0\0")) * 6;
+    let Some(tiff) = data.get_mut(prefix_len..) else {
+        return;
+    };
+    let little_endian = match tiff.get(..2) {
+        Some(b"II") => true,
+        Some(b"MM") => false,
+        _ => return,
+    };
+    let Some(header) = tiff.get(2..8) else {
+        return;
+    };
+    let magic = if little_endian {
+        u16::from_le_bytes([header[0], header[1]])
+    } else {
+        u16::from_be_bytes([header[0], header[1]])
+    };
+    if magic != 42 {
+        return;
+    }
+    let offset_bytes = [header[2], header[3], header[4], header[5]];
+    let offset = if little_endian {
+        u32::from_le_bytes(offset_bytes)
+    } else {
+        u32::from_be_bytes(offset_bytes)
+    } as usize;
+    let Some(count_bytes) = offset
+        .checked_add(0)
+        .and_then(|start| tiff.get(start..start + 2))
+    else {
+        return;
+    };
+    let count = if little_endian {
+        u16::from_le_bytes([count_bytes[0], count_bytes[1]])
+    } else {
+        u16::from_be_bytes([count_bytes[0], count_bytes[1]])
+    };
+    for index in 0..usize::from(count) {
+        let Some(entry) = offset.checked_add(2).and_then(|start| {
+            index
+                .checked_mul(12)
+                .and_then(|index| start.checked_add(index))
+        }) else {
+            return;
+        };
+        let Some(tag_bytes) = tiff.get(entry..entry + 2) else {
+            return;
+        };
+        let tag = if little_endian {
+            u16::from_le_bytes([tag_bytes[0], tag_bytes[1]])
+        } else {
+            u16::from_be_bytes([tag_bytes[0], tag_bytes[1]])
+        };
+        if tag == 0x0112 {
+            let Some(value) = tiff.get_mut(entry + 8..entry + 10) else {
+                return;
+            };
+            value.copy_from_slice(&if little_endian {
+                orientation.to_le_bytes()
+            } else {
+                orientation.to_be_bytes()
+            });
+            return;
+        }
+    }
 }
 
 pub(crate) fn apply_orientation(image: &mut DecodedImage) -> Result<()> {

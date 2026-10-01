@@ -111,7 +111,7 @@ impl Default for EncodeOptions {
 }
 
 impl EncodeOptions {
-    pub fn validate(&self, encoder: &dyn Encoder) -> Result<()> {
+    pub fn validate<E: Encoder + ?Sized>(&self, encoder: &E) -> Result<()> {
         self.compression.validate()?;
         if self.effort > 10 {
             return Err(Error::InvalidOptions {

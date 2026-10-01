@@ -27,7 +27,7 @@ impl Decoder for WebpDecoder {
         input.starts_with(b"RIFF") && input.get(8..12) == Some(b"WEBP")
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let mut decoder =
             ImageWebpDecoder::new(BufReader::new(Cursor::new(input))).map_err(corrupt)?;
         if decoder.is_animated() {
@@ -53,7 +53,7 @@ impl Decoder for WebpDecoder {
             PixelBuffer::rgba8(rgba, width, height)?,
             width,
             height,
-            options.color_space_override.unwrap_or(ColorSpace::Srgb),
+            ColorSpace::Srgb,
             BitDepth::Eight,
         )?;
         image.metadata = ImageMetadata {
@@ -74,7 +74,7 @@ impl Encoder for WebpEncoder {
         LosslessCapability::Configurable
     }
 
-    fn encode(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
+    fn encode_native(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
         options.validate(self)?;
         let PixelBuffer::Rgba8(rgba) = &image.pixels else {
             return Err(Error::InvalidOptions {

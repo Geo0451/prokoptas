@@ -9,10 +9,15 @@ repository.workspace = true
 jpeg-encoder = "0.6"
 zune-core = "0.4"
 png = "0.17"
-image = "0.25"
+image = { version = "0.25", features = ["avif"] }
 serde = { version = "1", features = ["derive"] }
 image-webp = "0.2.4"
 zenwebp = "0.4.4"
+zenavif = { version = "0.1.6", features = ["encode"] }
+zenpixels = "0.2.16"
+almost-enough = "0.4.4"
+jxl-oxide = { version = "0.12", features = ["image"] }
+jxl-encoder = "0.3"
 zune-jpeg = "0.4"
 heic = "0.1.6"
 rawler = "0.8"

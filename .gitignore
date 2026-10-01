@@ -11,3 +11,6 @@ prokoptas-technical-spec(4).md
 *.tiff
 *.dng
 *.raw
+*.heic
+*.avif
+*.jxl

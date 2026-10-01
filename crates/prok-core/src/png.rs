@@ -2,7 +2,7 @@ use std::io::Cursor;
 
 use png::{BitDepth as PngBitDepth, ColorType, Transformations};
 
-use crate::image::{apply_orientation, parse_exif_orientation};
+use crate::image::parse_exif_orientation;
 use crate::{
     BitDepth, ColorSpace, DecodeOptions, DecodedImage, Decoder, EncodeOptions, Encoder, Error,
     FormatRegistry, FormatTag, ImageMetadata, LosslessCapability, Orientation, PixelBuffer, Result,
@@ -27,7 +27,7 @@ impl Decoder for PngDecoder {
         input.starts_with(b"\x89PNG\r\n\x1a\n")
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let mut decoder = png::Decoder::new(Cursor::new(input));
         decoder.set_transformations(Transformations::EXPAND);
         let mut reader = decoder.read_info().map_err(corrupt)?;
@@ -52,10 +52,6 @@ impl Decoder for PngDecoder {
             ..ImageMetadata::default()
         };
 
-        if options.auto_rotate && orientation != Orientation::Normal {
-            apply_orientation(&mut image)?;
-        }
-
         Ok(image)
     }
 }
@@ -69,7 +65,7 @@ impl Encoder for PngEncoder {
         LosslessCapability::Always
     }
 
-    fn encode(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
+    fn encode_native(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
         options.validate(self)?;
         let (depth, bytes) = match (&image.pixels, options.bit_depth) {
             (PixelBuffer::Rgba8(data), BitDepth::Eight) => (PngBitDepth::Eight, data.clone()),

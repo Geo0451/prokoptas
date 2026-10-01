@@ -1,12 +1,15 @@
 #![forbid(unsafe_code)]
 
+mod avif;
 mod bmp;
 mod codec;
 mod heic;
 mod image;
 mod jpeg;
+mod jxl;
 mod options;
 mod png;
+mod processing;
 mod raw;
 mod registry;
 mod tiff;
@@ -14,16 +17,19 @@ mod webp;
 
 use std::fmt;
 
+pub use avif::{AvifDecoder, AvifEncoder, AVIF_REGISTRY};
 pub use bmp::{BmpDecoder, BmpEncoder, BMP_REGISTRY};
 pub use codec::{Decoder, Encoder};
 pub use heic::{HeicDecoder, HEIC_REGISTRY};
 pub use image::{BitDepth, ColorSpace, DecodedImage, ImageMetadata, Orientation, PixelBuffer};
 pub use jpeg::{JpegDecoder, JpegEncoder, JPEG_REGISTRY};
+pub use jxl::{JxlDecoder, JxlEncoder, JXL_REGISTRY};
 pub use options::{
     ChromaSubsampling, Compression, CropRect, DecodeOptions, DemosaicQuality, EncodeOptions,
     MetadataRetention, PngFilter,
 };
 pub use png::{PngDecoder, PngEncoder, PNG_REGISTRY};
+pub use processing::convert;
 pub use raw::{RawDecoder, RAW_REGISTRY};
 pub use registry::{FormatRegistry, FormatTag, LosslessCapability};
 pub use tiff::{TiffDecoder, TiffEncoder, TIFF_REGISTRY};
@@ -132,7 +138,7 @@ mod tests {
             input == b"test"
         }
 
-        fn decode(&self, _input: &[u8], _options: &DecodeOptions) -> Result<DecodedImage> {
+        fn decode_native(&self, _input: &[u8], _options: &DecodeOptions) -> Result<DecodedImage> {
             unreachable!()
         }
     }
@@ -150,7 +156,11 @@ mod tests {
             self.capability
         }
 
-        fn encode(&self, _image: &DecodedImage, _options: &EncodeOptions) -> Result<Vec<u8>> {
+        fn encode_native(
+            &self,
+            _image: &DecodedImage,
+            _options: &EncodeOptions,
+        ) -> Result<Vec<u8>> {
             unreachable!()
         }
     }

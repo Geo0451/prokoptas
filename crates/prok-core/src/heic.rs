@@ -6,10 +6,9 @@
 //! HEVC patent rights. Prokoptas provides HEIC as an engineering-supported decode input format
 //! without claiming patent freedom. Commercial or public releases must undergo separate patent review.
 
-use crate::image::{apply_orientation, parse_exif_orientation};
 use crate::{
     BitDepth, ColorSpace, DecodeOptions, DecodedImage, Decoder, Error, FormatRegistry, FormatTag,
-    ImageMetadata, Orientation, PixelBuffer, Result,
+    ImageMetadata, PixelBuffer, Result,
 };
 
 pub struct HeicDecoder;
@@ -49,7 +48,7 @@ impl Decoder for HeicDecoder {
         }
     }
 
-    fn decode(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+    fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let info = heic::ImageInfo::from_bytes(input).map_err(|e| Error::CorruptData {
             message: format!("HEIC metadata parse failed: {e}"),
         })?;
@@ -82,9 +81,7 @@ impl Decoder for HeicDecoder {
             message: format!("HEIC decoding failed: {e}"),
         })?;
 
-        let color_space = if let Some(override_cs) = options.color_space_override {
-            override_cs
-        } else if info.color_primaries == 12 {
+        let color_space = if info.color_primaries == 12 {
             ColorSpace::DisplayP3
         } else {
             ColorSpace::Srgb
@@ -99,21 +96,11 @@ impl Decoder for HeicDecoder {
         )?;
 
         let exif = info.exif.filter(|data| !data.is_empty());
-        let orientation = exif
-            .as_deref()
-            .and_then(parse_exif_orientation)
-            .unwrap_or(Orientation::Normal);
-
-        decoded_image.orientation = orientation;
         decoded_image.metadata = ImageMetadata {
             exif,
             xmp: info.xmp.filter(|data| !data.is_empty()),
             iptc: None,
         };
-
-        if options.auto_rotate && orientation != Orientation::Normal {
-            apply_orientation(&mut decoded_image)?;
-        }
 
         Ok(decoded_image)
     }
