@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f1f3ee" />
+    <link rel="stylesheet" href="./src/style.css" />
+    <title>Prokoptas Image Converter</title>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand" href="#" aria-label="Prokoptas home">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <span>PROKOPTAS</span>
+        </a>
+        <div class="runtime-state">
+          <span class="runtime-dot" id="runtime-dot"></span>
+          <span id="runtime-label">Starting local Core</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="page-heading">
+          <div>
+            <p class="eyebrow">LOCAL IMAGE TOOL</p>
+            <h1>Convert an image</h1>
+          </div>
+          <p class="privacy-note">Files stay in this browser</p>
+        </section>
+
+        <div class="workspace">
+          <section class="source-column" aria-labelledby="source-title">
+            <div class="section-heading">
+              <div>
+                <p class="step-number">01 / SOURCE</p>
+                <h2 id="source-title">Choose an image</h2>
+              </div>
+              <button class="text-button" id="clear-file" type="button" disabled>Clear</button>
+            </div>
+
+            <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Choose or drop an image file">
+              <input id="file-input" type="file" accept="image/*,.heic,.heif,.avif,.jxl,.cr2,.nef,.arw,.dng" hidden />
+              <div class="drop-icon" aria-hidden="true">＋</div>
+              <p class="drop-title">Drop an image here</p>
+              <p class="drop-subtitle">or <button class="inline-button" id="browse-file" type="button">browse files</button></p>
+              <p class="drop-formats">PNG · JPEG · TIFF · BMP · WebP · HEIC · AVIF · JXL · RAW</p>
+            </div>
+
+            <div class="file-summary" id="file-summary" hidden>
+              <div class="file-glyph" aria-hidden="true">IMG</div>
+              <div class="file-details">
+                <strong id="file-name"></strong>
+                <span id="file-meta"></span>
+              </div>
+              <span class="format-tag" id="input-format"></span>
+            </div>
+
+            <section class="compare-panel" id="compare-panel" aria-label="Before and after comparison" hidden>
+              <div class="compare-toolbar" aria-label="Canvas zoom controls">
+                <span class="canvas-title">Canvas</span>
+                <span class="zoom-hint">Scroll to zoom · Space-drag to pan · up to 64×</span>
+                <div class="zoom-controls">
+                  <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
+                  <output id="zoom-output" aria-live="polite">100%</output>
+                  <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+                  <button id="zoom-fit" type="button" title="Reset zoom and position">Fit</button>
+                </div>
+              </div>
+              <div
+                class="compare-stage"
+                id="compare-stage"
+                style="--split: 50%"
+                role="img"
+                tabindex="-1"
+                aria-label="Before and after image comparison"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="50"
+                aria-valuetext="50 percent before, 50 percent after"
+                aria-disabled="true"
+              >
+                <div class="zoom-layer" id="zoom-layer">
+                  <img class="compare-image" id="before-preview" alt="Original image preview" draggable="false" />
+                  <div class="after-layer" id="after-layer">
+                    <img class="compare-image" id="after-preview" alt="Converted image preview" draggable="false" />
+                  </div>
+                </div>
+                <div class="compare-divider" id="compare-divider" aria-hidden="true"><span></span></div>
+                <span class="compare-label before-label">Before</span>
+                <span class="compare-label after-label">After</span>
+              </div>
+              <div class="compare-control">
+                <span>Drag divider to compare</span>
+                <output id="compare-output">50% / 50%</output>
+              </div>
+            </section>
+
+            <div class="result-panel" id="result-panel" hidden>
+              <div class="result-heading">
+                <span class="result-check" aria-hidden="true">✓</span>
+                <div>
+                  <strong>Conversion ready</strong>
+                  <span id="result-meta"></span>
+                </div>
+              </div>
+              <button class="secondary-button" id="download-result" type="button">Download image</button>
+            </div>
+          </section>
+
+          <section class="options-column" aria-labelledby="options-title">
+            <div class="section-heading">
+              <div>
+                <p class="step-number">02 / OUTPUT</p>
+                <h2 id="options-title">Format and quality</h2>
+              </div>
+            </div>
+
+            <div class="field-row target-row">
+              <label for="target-format">Output format</label>
+              <select id="target-format">
+                <option value="png">PNG</option>
+                <option value="jpeg">JPEG</option>
+                <option value="tiff">TIFF</option>
+                <option value="bmp">BMP</option>
+                <option value="webp">WebP</option>
+                <option value="avif">AVIF</option>
+                <option value="jxl">JPEG XL</option>
+              </select>
+            </div>
+
+            <div class="capability-line" id="capability-line" aria-live="polite">
+              <span class="capability-indicator"></span>
+              <span id="capability-text">Select an output format</span>
+            </div>
+
+            <div class="field-block">
+              <label for="preset">Preset</label>
+              <select id="preset">
+                <option value="none">Custom settings</option>
+                <option value="web-optimized">Web Optimized</option>
+                <option value="max-quality-archive">Max Quality Archive</option>
+                <option value="social-media">Social Media</option>
+              </select>
+              <span class="field-hint" id="preset-hint">Choose a target to see available presets.</span>
+            </div>
+
+            <div class="field-block">
+              <label for="compression">Compression</label>
+              <select id="compression">
+                <option value="lossy">Lossy</option>
+                <option value="lossless">Lossless</option>
+              </select>
+            </div>
+
+            <div class="field-block quality-block">
+              <div class="label-row">
+                <label for="quality">Quality</label>
+                <output id="quality-output" for="quality">75</output>
+              </div>
+              <input id="quality" type="range" min="1" max="100" value="75" />
+              <div class="range-ends"><span>Smaller</span><span>Higher quality</span></div>
+            </div>
+
+            <fieldset class="metadata-fieldset">
+              <legend>Metadata</legend>
+              <div class="check-row">
+                <label><input id="keep-exif" type="checkbox" /> <span>EXIF</span></label>
+                <label><input id="keep-xmp" type="checkbox" /> <span>XMP</span></label>
+                <label class="unsupported-check" title="IPTC is not supported by current Core encoders"><input type="checkbox" disabled /> <span>IPTC</span></label>
+              </div>
+              <span class="field-hint" id="metadata-hint">Metadata is removed unless selected.</span>
+            </fieldset>
+
+            <details class="architect" id="architect-panel">
+              <summary>
+                <span>Architect Mode</span>
+                <span class="architect-note">Codec controls</span>
+              </summary>
+              <div class="architect-fields">
+                <div class="field-block">
+                  <label for="effort">Encoder effort <output id="effort-output">5</output></label>
+                  <input id="effort" type="range" min="0" max="10" value="5" />
+                </div>
+                <div class="field-block" id="chroma-block">
+                  <label for="chroma">JPEG chroma subsampling</label>
+                  <select id="chroma">
+                    <option value="">Default</option>
+                    <option value="Yuv444">4:4:4</option>
+                    <option value="Yuv422">4:2:2</option>
+                    <option value="Yuv420">4:2:0</option>
+                  </select>
+                </div>
+                <div class="field-block" id="bitdepth-block">
+                  <label for="bitdepth">Bit depth</label>
+                  <select id="bitdepth">
+                    <option value="Eight">8-bit</option>
+                    <option value="Ten">10-bit</option>
+                    <option value="Twelve">12-bit</option>
+                    <option value="Sixteen">16-bit</option>
+                  </select>
+                </div>
+                <div class="field-block" id="png-filter-block">
+                  <label for="png-filter">PNG filter</label>
+                  <select id="png-filter">
+                    <option value="">Default</option>
+                    <option value="Sub">Sub</option>
+                    <option value="Up">Up</option>
+                    <option value="Average">Average</option>
+                    <option value="Paeth">Paeth</option>
+                  </select>
+                </div>
+                <div class="check-row stacked" id="jxl-controls">
+                  <label><input id="jxl-noise" type="checkbox" /> <span>JXL noise synthesis</span></label>
+                  <label><input id="jxl-gaborish" type="checkbox" /> <span>JXL Gaborish</span></label>
+                </div>
+                <div class="check-row stacked">
+                  <label><input id="auto-rotate" type="checkbox" checked /> <span>Apply EXIF orientation</span></label>
+                  <label><input id="strict-metadata" type="checkbox" /> <span>Strict metadata checks</span></label>
+                </div>
+                <div class="field-block">
+                  <label for="memory-limit">Decode memory limit (MiB)</label>
+                  <input id="memory-limit" type="number" min="1" step="1" value="512" />
+                </div>
+                <div class="field-block">
+                  <label for="resize-edge">Resize long edge (px)</label>
+                  <input id="resize-edge" type="number" min="1" step="1" placeholder="No resize" />
+                </div>
+                <div class="field-block">
+                  <label for="crop">Crop (x, y, width, height)</label>
+                  <input id="crop" type="text" inputmode="numeric" placeholder="e.g. 0, 0, 800, 600" />
+                </div>
+                <div class="field-block">
+                  <label for="color-override">Interpret input color as</label>
+                  <select id="color-override">
+                    <option value="">Use detected/default</option>
+                    <option value="Srgb">sRGB</option>
+                    <option value="Linear">Linear</option>
+                    <option value="DisplayP3">Display P3</option>
+                  </select>
+                </div>
+                <div class="field-block">
+                  <label for="demosaic">RAW demosaic</label>
+                  <select id="demosaic">
+                    <option value="Fast">Fast</option>
+                    <option value="HighQuality">High quality (unsupported)</option>
+                  </select>
+                  <span class="field-hint">High-quality demosaic is unavailable in this Core build.</span>
+                </div>
+              </div>
+            </details>
+
+            <div class="error-message" id="error-message" role="alert" hidden></div>
+            <button class="primary-button" id="convert-button" type="button" disabled>
+              Convert image <span aria-hidden="true">→</span>
+            </button>
+            <p class="status-message" id="status-message" role="status" aria-live="polite"></p>
+          </section>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <span>PROKOPTAS CORE</span>
+        <span>Local processing · No upload</span>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

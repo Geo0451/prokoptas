@@ -1,6 +1,8 @@
 /target
 *.wasm
 
+/web/node_modules
+
 
 prokoptas-technical-spec(4).md
 

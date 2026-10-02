@@ -405,6 +405,8 @@ The WebAssembly entry is `crates/prok-wasm/src/lib.rs`. It exposes `version()`, 
 
 WASM conversion uses the same Core registry and pipeline as the CLI. Decode memory limits are checked before large decoded buffers are rendered, including AVIF frame limits and JXL dimension preflight. Browser conversion is single-threaded by default; threaded WASM remains an optional enhancement requiring shared-memory support and cross-origin isolation.
 
+To run the browser UI, install the `wasm32-unknown-unknown` Rust target and the matching `wasm-bindgen-cli` version, then run `npm install` and `npm run dev` from `web/`. The dev and production build scripts generate the WASM bindings locally before building the UI.
+
 ---
 
 ## 9. How a conversion actually flows

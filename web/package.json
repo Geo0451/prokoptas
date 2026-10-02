@@ -1,0 +1,16 @@
+{
+  "name": "prokoptas-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cargo build --manifest-path ../Cargo.toml -p prok-wasm --target wasm32-unknown-unknown --release && wasm-bindgen ../target/wasm32-unknown-unknown/release/prok_wasm.wasm --target web --out-dir pkg --out-name prok_wasm",
+    "predev": "npm run build:wasm",
+    "dev": "vite --host 127.0.0.1",
+    "prebuild": "npm run build:wasm",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^6.4.1"
+  }
+}
