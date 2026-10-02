@@ -34,6 +34,14 @@ pub(crate) fn encoder_for(target: FormatTag) -> Result<&'static dyn Encoder> {
     REGISTRY.encoder_for(target)
 }
 
+pub fn probe_format(input: &[u8]) -> Option<FormatTag> {
+    REGISTRY.decoder_for(input).ok().map(Decoder::format)
+}
+
+pub fn lossless_capability(target: FormatTag) -> Result<crate::LosslessCapability> {
+    Ok(encoder_for(target)?.lossless_capability())
+}
+
 /// Decode, normalize, apply requested output conversions, then encode in `target` format.
 pub fn convert(
     input: &[u8],
@@ -363,6 +371,56 @@ mod tests {
             assert_eq!(
                 decoded.pixels, expected,
                 "{format:?} archive samples changed"
+            );
+        }
+    }
+
+    #[test]
+    fn large_image_memory_limits_reject_before_rgba_render() {
+        let width = 513;
+        let height = 513;
+        let pixels = vec![127; width * height * 4];
+        let image = DecodedImage::new(
+            PixelBuffer::rgba8(pixels, width as u32, height as u32)
+                .expect("valid large image pixels"),
+            width as u32,
+            height as u32,
+            ColorSpace::Srgb,
+            BitDepth::Eight,
+        )
+        .expect("valid large image");
+        let png = PngEncoder
+            .encode(&image, &options_for(FormatTag::Png))
+            .expect("encode large PNG");
+        let avif = AvifEncoder
+            .encode(&image, &options_for(FormatTag::Avif))
+            .expect("encode large AVIF");
+        let jxl = JxlEncoder
+            .encode(&image, &options_for(FormatTag::Jxl))
+            .expect("encode large JXL");
+        let decode_options = DecodeOptions {
+            memory_limit_mb: Some(1),
+            ..DecodeOptions::default()
+        };
+
+        for (format, bytes) in [
+            (FormatTag::Png, png),
+            (FormatTag::Avif, avif),
+            (FormatTag::Jxl, jxl),
+        ] {
+            let result = convert(
+                &bytes,
+                FormatTag::Png,
+                &decode_options,
+                &options_for(FormatTag::Png),
+            );
+            assert_eq!(
+                result,
+                Err(Error::MemoryLimitExceeded {
+                    required_mb: 2,
+                    allowed_mb: 1,
+                }),
+                "{format:?} should reject the oversized decoded buffer"
             );
         }
     }

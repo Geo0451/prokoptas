@@ -401,16 +401,9 @@ The CLI should never “invent” conversion behavior. It must pass through the 
 
 ## 8. WASM shell
 
-The WebAssembly entry is:
+The WebAssembly entry is `crates/prok-wasm/src/lib.rs`. It exposes `version()`, `probeFormat(Uint8Array)`, `losslessCapability(format)`, and `convert(input, target, decodeOptions, encodeOptions)`. Options are deserialized through Serde, and errors are returned as structured objects with stable `code` and `message` fields.
 
-- `crates/prok-wasm/src/lib.rs`
-
-It is minimal at the moment:
-
-- `version() -> String`
-- exports the core version to JS
-
-This matches the architecture stated in the technical spec: the browser shell is a thin wrapper and should not hold image conversion logic.
+WASM conversion uses the same Core registry and pipeline as the CLI. Decode memory limits are checked before large decoded buffers are rendered, including AVIF frame limits and JXL dimension preflight. Browser conversion is single-threaded by default; threaded WASM remains an optional enhancement requiring shared-memory support and cross-origin isolation.
 
 ---
 

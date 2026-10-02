@@ -29,7 +29,35 @@ impl Decoder for AvifDecoder {
     }
 
     fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
-        let decoded = zenavif::decode(input).map_err(corrupt)?;
+        let frame_limit = if let Some(allowed_mb) = options.memory_limit_mb {
+            let allowed_bytes = allowed_mb.saturating_mul(1024 * 1024);
+            let pixels = allowed_bytes / 4;
+            if pixels == 0 {
+                return Err(Error::MemoryLimitExceeded {
+                    required_mb: 1,
+                    allowed_mb,
+                });
+            }
+            pixels.min(u64::from(u32::MAX)) as u32
+        } else {
+            0
+        };
+        let config = zenavif::DecoderConfig::new().frame_size_limit(frame_limit);
+        let decoded = zenavif::decode_with(input, &config, &zenavif::Unstoppable).map_err(
+            |error| match error.error() {
+                zenavif::Error::ImageTooLarge { width, height } => {
+                    let required_mb = (*width as u64)
+                        .saturating_mul(u64::from(*height))
+                        .saturating_mul(4)
+                        .div_ceil(1024 * 1024);
+                    Error::MemoryLimitExceeded {
+                        required_mb,
+                        allowed_mb: options.memory_limit_mb.unwrap_or_default(),
+                    }
+                }
+                _ => corrupt(error),
+            },
+        )?;
         let width = decoded.width();
         let height = decoded.height();
         let descriptor = decoded.descriptor();

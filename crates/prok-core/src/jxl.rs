@@ -28,6 +28,13 @@ impl Decoder for JxlDecoder {
 
     fn decode_native(&self, input: &[u8], _options: &DecodeOptions) -> Result<DecodedImage> {
         jxl_oxide::integration::register_image_decoding_hook();
+        let header = jxl_oxide::JxlImage::builder()
+            .read(Cursor::new(input))
+            .map_err(corrupt)?;
+        let width = header.width();
+        let height = header.height();
+        enforce_memory_limit(width, height, _options.memory_limit_mb)?;
+        drop(header);
         let image = ImageReader::new(Cursor::new(input))
             .with_guessed_format()
             .map_err(corrupt)?
@@ -97,6 +104,25 @@ fn corrupt<E: std::fmt::Display>(error: E) -> Error {
     Error::CorruptData {
         message: error.to_string(),
     }
+}
+
+fn enforce_memory_limit(width: u32, height: u32, limit_mb: Option<u64>) -> Result<()> {
+    let bytes = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|pixels| pixels.checked_mul(4))
+        .ok_or_else(|| Error::CorruptData {
+            message: "JPEG XL image dimensions overflowed".to_owned(),
+        })?;
+    if let Some(allowed_mb) = limit_mb {
+        let required_mb = bytes.div_ceil(1024 * 1024) as u64;
+        if required_mb > allowed_mb {
+            return Err(Error::MemoryLimitExceeded {
+                required_mb,
+                allowed_mb,
+            });
+        }
+    }
+    Ok(())
 }
 
 fn rgba_to_rgba8(image: &DecodedImage) -> Result<Vec<u8>> {

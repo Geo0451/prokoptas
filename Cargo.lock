@@ -1164,9 +1164,9 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "linear-srgb"
-version = "0.6.12"
+version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe0e61c33d85bc56dcaf27cdf48ca32b8e34af7236584eb1d8a47316c49e0be1"
+checksum = "aec728ff58a6af8e67dbab79f479ce908b2eb50d40011df945f287d506bd9e32"
 dependencies = [
  "archmage",
  "bytemuck",
@@ -1200,12 +1200,11 @@ dependencies = [
 
 [[package]]
 name = "magetypes"
-version = "0.9.28"
+version = "0.9.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b3e01b6a29880b694607d95eb01da6bf71a291c545a560c5255c26e02a35413"
+checksum = "852e70c405753a755fcecebed2c12da4c048916ce912ed555f09446f24fc65eb"
 dependencies = [
  "archmage",
- "rustversion",
 ]
 
 [[package]]
@@ -1582,9 +1581,11 @@ dependencies = [
  "jpeg-encoder",
  "jxl-encoder",
  "jxl-oxide",
+ "magetypes",
  "png 0.17.16",
  "rawler",
  "serde",
+ "uuid",
  "zenavif",
  "zenpixels",
  "zenwebp",
@@ -1596,7 +1597,10 @@ dependencies = [
 name = "prok-wasm"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "prok-core",
+ "serde",
+ "serde-wasm-bindgen",
  "wasm-bindgen",
 ]
 
@@ -1928,6 +1932,17 @@ checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
  "serde_derive",
+]
+
+[[package]]
+name = "serde-wasm-bindgen"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8302e169f0eddcc139c70f139d19d6467353af16f9fce27e8c30158036a1e16b"
+dependencies = [
+ "js-sys",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -2506,14 +2521,13 @@ dependencies = [
 
 [[package]]
 name = "zenpixels-convert"
-version = "0.2.16"
+version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf516a64a98f08fa2aa19e86f1389e49894f750441044d65369687cf88a1b8dd"
+checksum = "8448e21cea740838e8d7bde61ce22074e75d98b4b02757af71ac59342a930f6f"
 dependencies = [
  "archmage",
  "bytemuck",
  "garb",
- "libm",
  "linear-srgb",
  "magetypes",
  "once_cell",

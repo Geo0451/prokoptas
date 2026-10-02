@@ -22,5 +22,9 @@ zune-jpeg = "0.4"
 heic = "0.1.6"
 rawler = "0.8"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+magetypes = "=0.9.21"
+uuid = { version = "1", features = ["js"] }
+
 [lints]
 workspace = true

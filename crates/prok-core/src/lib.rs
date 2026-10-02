@@ -29,7 +29,7 @@ pub use options::{
     MetadataRetention, PngFilter,
 };
 pub use png::{PngDecoder, PngEncoder, PNG_REGISTRY};
-pub use processing::convert;
+pub use processing::{convert, lossless_capability, probe_format};
 pub use raw::{RawDecoder, RAW_REGISTRY};
 pub use registry::{FormatRegistry, FormatTag, LosslessCapability};
 pub use tiff::{TiffDecoder, TiffEncoder, TIFF_REGISTRY};

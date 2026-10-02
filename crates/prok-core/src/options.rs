@@ -59,6 +59,7 @@ pub struct CropRect {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
 pub struct DecodeOptions {
     pub strict_metadata: bool,
     pub color_space_override: Option<ColorSpace>,
@@ -80,6 +81,7 @@ impl Default for DecodeOptions {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(default)]
 pub struct EncodeOptions {
     pub compression: Compression,
     pub bit_depth: crate::BitDepth,
