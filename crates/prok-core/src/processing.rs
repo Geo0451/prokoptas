@@ -30,6 +30,10 @@ static ENCODERS: [&dyn Encoder; 7] = [
 
 static REGISTRY: FormatRegistry<'static> = FormatRegistry::new(&DECODERS, &ENCODERS);
 
+pub(crate) fn encoder_for(target: FormatTag) -> Result<&'static dyn Encoder> {
+    REGISTRY.encoder_for(target)
+}
+
 /// Decode, normalize, apply requested output conversions, then encode in `target` format.
 pub fn convert(
     input: &[u8],
@@ -80,6 +84,29 @@ pub(crate) fn prepare_for_encoding(
     target: FormatTag,
     options: &EncodeOptions,
 ) -> Result<()> {
+    if options.png_filter.is_some() && target != FormatTag::Png {
+        return Err(Error::InvalidOptions {
+            message: "PNG filter can only be used with PNG output".to_owned(),
+        });
+    }
+    if options.chroma_subsampling.is_some() && target != FormatTag::Jpeg {
+        return Err(Error::InvalidOptions {
+            message: "chroma subsampling is currently supported only for JPEG output".to_owned(),
+        });
+    }
+    if (options.jxl_noise_synthesis || options.jxl_gaborish) && target != FormatTag::Jxl {
+        return Err(Error::InvalidOptions {
+            message: "JXL tuning options require JXL output".to_owned(),
+        });
+    }
+    if (options.jxl_noise_synthesis || options.jxl_gaborish)
+        && matches!(options.compression, crate::Compression::Lossless)
+    {
+        return Err(Error::InvalidOptions {
+            message: "JXL noise synthesis and Gaborish are available only in lossy mode".to_owned(),
+        });
+    }
+    apply_image_transforms(image, options)?;
     let supports_sixteen_bit = matches!(target, FormatTag::Png | FormatTag::Tiff);
     if options.bit_depth == BitDepth::Sixteen && !supports_sixteen_bit {
         return Err(Error::InvalidOptions {
@@ -100,8 +127,8 @@ pub(crate) fn prepare_for_encoding(
     image.convert_bit_depth(options.bit_depth);
 
     let retention = options.metadata_retention;
-    let supports_exif = matches!(target, FormatTag::Png | FormatTag::WebP);
-    let supports_xmp = target == FormatTag::WebP;
+    let supports_exif = matches!(target, FormatTag::Png | FormatTag::WebP | FormatTag::Avif);
+    let supports_xmp = matches!(target, FormatTag::WebP | FormatTag::Avif);
     if retention.exif && image.metadata.exif.is_some() && !supports_exif {
         return Err(unsupported_metadata(target, "EXIF"));
     }
@@ -123,6 +150,112 @@ pub(crate) fn prepare_for_encoding(
     Ok(())
 }
 
+fn apply_image_transforms(image: &mut DecodedImage, options: &EncodeOptions) -> Result<()> {
+    if let Some(crop) = options.crop {
+        let right = crop.x.checked_add(crop.width);
+        let bottom = crop.y.checked_add(crop.height);
+        if crop.width == 0
+            || crop.height == 0
+            || right.is_none_or(|right| right > image.width)
+            || bottom.is_none_or(|bottom| bottom > image.height)
+        {
+            return Err(Error::InvalidOptions {
+                message: "crop rectangle must be non-empty and inside the image".to_owned(),
+            });
+        }
+
+        match &image.pixels {
+            crate::PixelBuffer::Rgba8(data) => {
+                let buffer = ::image::RgbaImage::from_raw(image.width, image.height, data.clone())
+                    .ok_or_else(|| Error::CorruptData {
+                        message: "crop source buffer size mismatch".to_owned(),
+                    })?;
+                image.pixels = crate::PixelBuffer::Rgba8(
+                    ::image::imageops::crop_imm(&buffer, crop.x, crop.y, crop.width, crop.height)
+                        .to_image()
+                        .into_raw(),
+                );
+            }
+            crate::PixelBuffer::Rgba16(data) => {
+                let buffer = ::image::ImageBuffer::<::image::Rgba<u16>, Vec<u16>>::from_raw(
+                    image.width,
+                    image.height,
+                    data.clone(),
+                )
+                .ok_or_else(|| Error::CorruptData {
+                    message: "crop source buffer size mismatch".to_owned(),
+                })?;
+                image.pixels = crate::PixelBuffer::Rgba16(
+                    ::image::imageops::crop_imm(&buffer, crop.x, crop.y, crop.width, crop.height)
+                        .to_image()
+                        .into_raw(),
+                );
+            }
+        }
+        image.width = crop.width;
+        image.height = crop.height;
+    }
+
+    if let Some(long_edge) = options.resize_long_edge {
+        if long_edge == 0 {
+            return Err(Error::InvalidOptions {
+                message: "resize long edge must be greater than zero".to_owned(),
+            });
+        }
+        let current_long_edge = image.width.max(image.height);
+        if current_long_edge != long_edge {
+            let width = (u64::from(image.width) * u64::from(long_edge)
+                + u64::from(current_long_edge / 2))
+                / u64::from(current_long_edge);
+            let height = (u64::from(image.height) * u64::from(long_edge)
+                + u64::from(current_long_edge / 2))
+                / u64::from(current_long_edge);
+            let width = width.max(1) as u32;
+            let height = height.max(1) as u32;
+            match &image.pixels {
+                crate::PixelBuffer::Rgba8(data) => {
+                    let buffer =
+                        ::image::RgbaImage::from_raw(image.width, image.height, data.clone())
+                            .ok_or_else(|| Error::CorruptData {
+                                message: "resize source buffer size mismatch".to_owned(),
+                            })?;
+                    image.pixels = crate::PixelBuffer::Rgba8(
+                        ::image::imageops::resize(
+                            &buffer,
+                            width,
+                            height,
+                            ::image::imageops::FilterType::Lanczos3,
+                        )
+                        .into_raw(),
+                    );
+                }
+                crate::PixelBuffer::Rgba16(data) => {
+                    let buffer = ::image::ImageBuffer::<::image::Rgba<u16>, Vec<u16>>::from_raw(
+                        image.width,
+                        image.height,
+                        data.clone(),
+                    )
+                    .ok_or_else(|| Error::CorruptData {
+                        message: "resize source buffer size mismatch".to_owned(),
+                    })?;
+                    image.pixels = crate::PixelBuffer::Rgba16(
+                        ::image::imageops::resize(
+                            &buffer,
+                            width,
+                            height,
+                            ::image::imageops::FilterType::Lanczos3,
+                        )
+                        .into_raw(),
+                    );
+                }
+            }
+            image.width = width;
+            image.height = height;
+        }
+    }
+    Ok(())
+}
+
 fn unsupported_metadata(target: FormatTag, metadata: &str) -> Error {
     Error::InvalidOptions {
         message: format!(
@@ -137,9 +270,10 @@ mod tests {
     use super::{convert, normalize_decoded_image, prepare_for_encoding};
     use crate::{
         AvifDecoder, AvifEncoder, BitDepth, BmpDecoder, BmpEncoder, ColorSpace, Compression,
-        DecodeOptions, DecodedImage, Decoder, EncodeOptions, Encoder, FormatTag, ImageMetadata,
-        JpegDecoder, JpegEncoder, JxlDecoder, JxlEncoder, MetadataRetention, Orientation,
-        PixelBuffer, PngDecoder, PngEncoder, TiffDecoder, TiffEncoder, WebpDecoder, WebpEncoder,
+        DecodeOptions, DecodedImage, Decoder, EncodeOptions, Encoder, Error, FormatTag,
+        ImageMetadata, JpegDecoder, JpegEncoder, JxlDecoder, JxlEncoder, LosslessCapability,
+        MetadataRetention, Orientation, PixelBuffer, PngDecoder, PngEncoder, TiffDecoder,
+        TiffEncoder, WebpDecoder, WebpEncoder,
     };
 
     const FORMATS: [(FormatTag, &dyn Decoder, &dyn Encoder); 7] = [
@@ -172,7 +306,9 @@ mod tests {
 
     fn options_for(format: FormatTag) -> EncodeOptions {
         let compression = match format {
-            FormatTag::Jpeg | FormatTag::WebP => Compression::Lossy { quality: 85 },
+            FormatTag::Jpeg | FormatTag::WebP | FormatTag::Avif => {
+                Compression::Lossy { quality: 85 }
+            }
             _ => Compression::Lossless,
         };
         EncodeOptions {
@@ -180,6 +316,54 @@ mod tests {
             bit_depth: BitDepth::Eight,
             metadata_retention: MetadataRetention::default(),
             ..EncodeOptions::default()
+        }
+    }
+
+    #[test]
+    fn archive_presets_are_pixel_exact_for_lossless_targets_only() {
+        let source = fixture();
+        let source_bytes = PngEncoder
+            .encode(&source, &options_for(FormatTag::Png))
+            .expect("encode source image");
+
+        for (format, decoder, _) in FORMATS {
+            let options = match EncodeOptions::preset_max_quality_archive(format) {
+                Ok(options) => options,
+                Err(Error::LosslessNotSupported) => {
+                    assert_eq!(
+                        crate::processing::encoder_for(format)
+                            .expect("registered encoder")
+                            .lossless_capability(),
+                        LosslessCapability::Never
+                    );
+                    continue;
+                }
+                Err(error) => panic!("unexpected {format:?} archive preset error: {error}"),
+            };
+            assert_eq!(options.compression, Compression::Lossless);
+
+            let output = convert(&source_bytes, format, &DecodeOptions::default(), &options)
+                .unwrap_or_else(|error| panic!("{format:?} archive conversion failed: {error}"));
+            let decoded = decoder
+                .decode(&output, &DecodeOptions::default())
+                .unwrap_or_else(|error| panic!("{format:?} archive output failed: {error}"));
+            let expected = if options.bit_depth == BitDepth::Sixteen {
+                let PixelBuffer::Rgba8(pixels) = &source.pixels else {
+                    panic!("fixture must be RGBA8");
+                };
+                PixelBuffer::Rgba16(
+                    pixels
+                        .iter()
+                        .map(|sample| u16::from(*sample) * 257)
+                        .collect(),
+                )
+            } else {
+                source.pixels.clone()
+            };
+            assert_eq!(
+                decoded.pixels, expected,
+                "{format:?} archive samples changed"
+            );
         }
     }
 
@@ -280,6 +464,72 @@ mod tests {
             image.pixels,
             PixelBuffer::Rgba16(vec![0, 32896, 65535, 65535])
         );
+    }
+
+    #[test]
+    fn crop_and_long_edge_resize_transform_dimensions_and_samples() {
+        let mut image = fixture();
+        prepare_for_encoding(
+            &mut image,
+            FormatTag::Png,
+            &EncodeOptions {
+                crop: Some(crate::CropRect {
+                    x: 1,
+                    y: 0,
+                    width: 1,
+                    height: 2,
+                }),
+                ..options_for(FormatTag::Png)
+            },
+        )
+        .expect("crop image");
+        assert_eq!((image.width, image.height), (1, 2));
+        assert_eq!(
+            image.pixels,
+            PixelBuffer::Rgba8(vec![0, 255, 0, 255, 64, 128, 192, 255])
+        );
+
+        prepare_for_encoding(
+            &mut image,
+            FormatTag::Png,
+            &EncodeOptions {
+                resize_long_edge: Some(4),
+                ..options_for(FormatTag::Png)
+            },
+        )
+        .expect("resize image");
+        assert_eq!((image.width, image.height), (2, 4));
+        assert_eq!(image.pixels.len(), 2 * 4 * 4);
+    }
+
+    #[test]
+    fn invalid_crop_and_resize_are_rejected() {
+        let mut image = fixture();
+        assert!(prepare_for_encoding(
+            &mut image,
+            FormatTag::Png,
+            &EncodeOptions {
+                crop: Some(crate::CropRect {
+                    x: 1,
+                    y: 1,
+                    width: 2,
+                    height: 1,
+                }),
+                ..options_for(FormatTag::Png)
+            }
+        )
+        .is_err());
+
+        let mut image = fixture();
+        assert!(prepare_for_encoding(
+            &mut image,
+            FormatTag::Png,
+            &EncodeOptions {
+                resize_long_edge: Some(0),
+                ..options_for(FormatTag::Png)
+            }
+        )
+        .is_err());
     }
 
     #[test]

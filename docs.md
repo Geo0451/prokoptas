@@ -118,7 +118,7 @@ This is important because the project enforces semantics rather than guessing:
 - JPEG is never lossless
 - PNG is always lossless
 - WebP can be either
-- AVIF/JXL can be configurable
+- JXL is configurable; AVIF currently supports lossy encoding only
 
 The code validates lossless requests using `encoder.lossless_capability()`.
 
@@ -342,9 +342,9 @@ The adapter uses `zenavif` for pure-Rust still-image decoding and encoding.
 
 The encoder declares:
 
-- `lossless_capability() -> Configurable`
+- `lossless_capability() -> Never`
 
-AVIF probe precedence is above the broader HEIC-compatible-brand probe so AVIF inputs are dispatched to the correct decoder.
+AVIF encoding is lossy-only because the selected encoder/decoder path did not preserve exact samples in lossless-mode verification. AVIF remains supported by the Web Optimized preset. AVIF probe precedence is above the broader HEIC-compatible-brand probe so AVIF inputs are dispatched to the correct decoder.
 
 ### `crates/prok-core/src/jxl.rs`
 
@@ -372,20 +372,24 @@ The CLI entry point is:
 
 What it does:
 
-- parse the two arguments: input path and output path
-- read input bytes
-- detect the correct decoder via registry probing
-- decode the image
-- select the target encoder from the output extension
-- write bytes to the output path
+- parse positional input/output paths plus the shared decode/encode options
+- route all conversions through `prok_core::convert`
+- optionally process supported files in one input directory using a bounded worker pool
+- report per-file failures and return a stable non-zero exit code
 
-Current dispatch logic is intentionally simple and genre-based; it maps extensions to encoder configuration. Example:
+For one file, the output extension selects the target format:
 
-- `.png` => PNG encoder + lossless mode
-- `.jpg` / `.jpeg` => JPEG encoder + lossy quality 75
-- `.webp` => WebP encoder + lossy quality 75
-- `.tiff` => TIFF encoder + lossless mode
-- `.bmp` => BMP encoder + lossless mode
+```text
+prok input.png output.webp --enc-quality 82 --quiet
+```
+
+For batch conversion, pass an input directory, output directory, `--batch`, and `--format`. Batch enumeration is nonrecursive and includes recognized image extensions only:
+
+```text
+prok ./images ./converted --batch --format webp --threads 4 --preset web-optimized
+```
+
+The default mode prints a conversion summary, `--verbose` prints each completed path, and `--quiet` suppresses success output while errors remain on stderr. Exit codes distinguish invalid usage/options (2), unsupported input (3), corrupt data (4), memory limit (5), I/O (6), and encoding (7).
 
 This is a thin shell around Core logic and is not where the real conversion rules live.
 

@@ -10,7 +10,9 @@ name = "prok"
 path = "src/main.rs"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
 prok-core = { path = "../prok-core" }
+rayon = "1"
 
 [lints]
 workspace = true

@@ -30,6 +30,7 @@ impl Decoder for PngDecoder {
     fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
         let mut decoder = png::Decoder::new(Cursor::new(input));
         decoder.set_transformations(Transformations::EXPAND);
+        decoder.ignore_checksums(!options.strict_metadata);
         let mut reader = decoder.read_info().map_err(corrupt)?;
         let width = reader.info().width;
         let height = reader.info().height;
@@ -89,6 +90,14 @@ impl Encoder for PngEncoder {
         let mut encoder = png::Encoder::new(&mut encoded, image.width, image.height);
         encoder.set_color(ColorType::Rgba);
         encoder.set_depth(depth);
+        if let Some(filter) = options.png_filter {
+            encoder.set_filter(match filter {
+                crate::PngFilter::Sub => png::FilterType::Sub,
+                crate::PngFilter::Up => png::FilterType::Up,
+                crate::PngFilter::Average => png::FilterType::Avg,
+                crate::PngFilter::Paeth => png::FilterType::Paeth,
+            });
+        }
         let mut writer = encoder.write_header().map_err(encoding)?;
         if options.metadata_retention.exif {
             if let Some(exif) = &image.metadata.exif {

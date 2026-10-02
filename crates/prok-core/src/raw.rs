@@ -64,6 +64,12 @@ impl Decoder for RawDecoder {
     }
 
     fn decode_native(&self, input: &[u8], options: &DecodeOptions) -> Result<DecodedImage> {
+        if options.demosaic_quality == crate::DemosaicQuality::HighQuality {
+            return Err(Error::InvalidOptions {
+                message: "high-quality demosaic is not supported by the current RAW adapter"
+                    .to_owned(),
+            });
+        }
         // Use rawler to decode the RAW file.
         // rawler's decode_file expects a file path, so write to a temp file.
         let temp_dir = std::env::temp_dir();

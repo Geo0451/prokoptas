@@ -58,11 +58,14 @@ impl Encoder for AvifEncoder {
     }
 
     fn lossless_capability(&self) -> LosslessCapability {
-        LosslessCapability::Configurable
+        LosslessCapability::Never
     }
 
     fn encode_native(&self, image: &DecodedImage, options: &EncodeOptions) -> Result<Vec<u8>> {
         options.validate(self)?;
+        let crate::Compression::Lossy { quality } = options.compression else {
+            return Err(Error::LosslessNotSupported);
+        };
         let rgba = rgba_to_rgba8(image)?;
 
         let pixels =
@@ -71,12 +74,19 @@ impl Encoder for AvifEncoder {
                     message: error.to_string(),
                 })?;
 
-        let config = match options.compression {
-            crate::Compression::Lossless => zenavif::EncoderConfig::new().quality(100.0),
-            crate::Compression::Lossy { quality } => {
-                zenavif::EncoderConfig::new().quality(quality as f32)
+        let mut config = zenavif::EncoderConfig::new()
+            .quality(quality as f32)
+            .speed(options.effort);
+        if options.metadata_retention.exif {
+            if let Some(exif) = image.metadata.exif.as_ref() {
+                config = config.exif(exif.clone());
             }
-        };
+        }
+        if options.metadata_retention.xmp {
+            if let Some(xmp) = image.metadata.xmp.as_ref() {
+                config = config.xmp(xmp.clone());
+            }
+        }
 
         let encoded = zenavif::encode_with(
             &pixels,
@@ -158,19 +168,27 @@ mod tests {
     }
 
     #[test]
-    fn avif_reports_lossless_capability_and_encodes() {
-        assert_eq!(
-            AvifEncoder.lossless_capability(),
-            LosslessCapability::Configurable
-        );
-        let result = AvifEncoder.encode(
+    fn avif_does_not_claim_lossless_encoding() {
+        assert_eq!(AvifEncoder.lossless_capability(), LosslessCapability::Never);
+        let lossless = AvifEncoder.encode(
             &fixture(),
             &crate::EncodeOptions {
                 compression: Compression::Lossless,
                 ..crate::EncodeOptions::default()
             },
         );
-        assert!(result.is_ok());
-        assert!(!result.unwrap().is_empty());
+        assert_eq!(lossless, Err(crate::Error::LosslessNotSupported));
+
+        let encoded = AvifEncoder
+            .encode(
+                &fixture(),
+                &crate::EncodeOptions {
+                    compression: Compression::Lossy { quality: 75 },
+                    ..crate::EncodeOptions::default()
+                },
+            )
+            .expect("AVIF lossy encoding succeeds");
+        assert!(!encoded.is_empty());
+        assert!(AvifDecoder.probe(&encoded));
     }
 }

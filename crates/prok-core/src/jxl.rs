@@ -71,8 +71,10 @@ impl Encoder for JxlEncoder {
                 })?,
             crate::Compression::Lossy { quality } => {
                 let distance = jxl_encoder::quality_to_distance(f32::from(quality));
-                let config =
-                    jxl_encoder::LossyConfig::new(distance).with_effort(options.effort.min(10));
+                let config = jxl_encoder::LossyConfig::new(distance)
+                    .with_effort(options.effort.min(10))
+                    .with_noise(options.jxl_noise_synthesis)
+                    .with_gaborish(options.jxl_gaborish);
 
                 config
                     .encode(
